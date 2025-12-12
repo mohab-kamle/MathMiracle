@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Play, RotateCcw, Lock, CheckCircle2, XCircle, Info, Calculator, BookOpen, Globe, Anchor, Scale } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Play, RotateCcw, Lock, CheckCircle2, XCircle, Info, BookOpen, Globe, Anchor, Scale } from 'lucide-react';
 
 // --- CONSTANTS & DATA ---
 
