@@ -7,7 +7,7 @@ function App() {
   
   return (
     <>
-      <QuranSymmetryGame><QuranSymmetryGame/>
+      <QuranSymmetryGame></QuranSymmetryGame>
     </>
   )
 }
