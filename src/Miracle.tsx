@@ -514,6 +514,14 @@ export default function QuranSymmetryGame() {
                   ({((g2Wins / g2Attempts) * 100).toFixed(2)}% win rate)
                 </span>
               )}
+              {g2Attempts > 0 && (
+                <button
+                  onClick={resetGame2}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/10 text-purple-300 hover:text-white hover:bg-white/20 transition-colors font-semibold"
+                >
+                  <RotateCcw className="w-3 h-3" /> Reset
+                </button>
+              )}
             </div>
           </div>
         </div>
