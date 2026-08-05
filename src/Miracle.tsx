@@ -36,6 +36,16 @@ const GAMES = [
     border: 'border-violet-200 hover:border-violet-400',
     glow: 'hover:shadow-violet-200/50',
   },
+  {
+    id: 'game3' as const,
+    title: 'Repeated / Non-Repeated Codes',
+    subtitle: 'Game 3',
+    description: 'Generate random ayahs and calculate codes. Check if the ratio of the sum of repeated codes to non-repeated codes is close to the Golden Ratio (1.618).',
+    icon: Dices,
+    gradient: 'from-orange-500 to-red-600',
+    border: 'border-orange-200 hover:border-orange-400',
+    glow: 'hover:shadow-orange-200/50',
+  },
 ];
 
 type GameId = typeof GAMES[number]['id'];
@@ -60,6 +70,15 @@ export default function QuranSymmetryGame() {
   const [g2Data, setG2Data] = useState<Array<{ id: number, ayahs: number, isEvenAyahs: boolean }>>([]);
   const [g2Status, setG2Status] = useState<'idle' | 'success' | 'fail'>('idle');
   const [g2BatchSize, setG2BatchSize] = useState(1000);
+
+  // --- Game 3 State ---
+  const [g3LevelIdx, setG3LevelIdx] = useState(0);
+  const [g3Attempts, setG3Attempts] = useState(0);
+  const [g3Wins, setG3Wins] = useState(0);
+  const [g3Losses, setG3Losses] = useState(0);
+  const [g3Data, setG3Data] = useState<Array<{ id: number, ayahs: number, code: number, isRepeated: boolean }>>([]);
+  const [g3Status, setG3Status] = useState<'idle' | 'success' | 'fail'>('idle');
+  const [g3BatchSize, setG3BatchSize] = useState(1000);
 
   const currentLevel = LEVELS[currentLevelIdx];
 
@@ -193,6 +212,98 @@ export default function QuranSymmetryGame() {
   const g2SecondHalf = g2Data.slice(57);
   const g2EvenFirst = g2FirstHalf.filter(d => d.isEvenAyahs).length;
   const g2EvenSecond = g2SecondHalf.filter(d => d.isEvenAyahs).length;
+
+  // --- Game 3 Logic ---
+  const generateGame3 = () => {
+    setG3Attempts(prev => prev + 1);
+
+    // Generate codes
+    const newData = Array.from({ length: 114 }, (_, i) => {
+      const surahNum = i + 1;
+      const randomAyahs = Math.floor(Math.random() * 284) + 3;
+      const code = surahNum + randomAyahs;
+      return { id: surahNum, ayahs: randomAyahs, code, isRepeated: false };
+    });
+
+    // Count frequencies
+    const codeCounts: Record<number, number> = {};
+    newData.forEach(d => {
+      codeCounts[d.code] = (codeCounts[d.code] || 0) + 1;
+    });
+
+    // Classify as repeated or non-repeated
+    let sumRepeated = 0;
+    let sumNonRepeated = 0;
+    newData.forEach(d => {
+      if (codeCounts[d.code] > 1) {
+        d.isRepeated = true;
+        sumRepeated += d.code;
+      } else {
+        sumNonRepeated += d.code;
+      }
+    });
+
+    setG3Data(newData);
+
+    const ratio = sumNonRepeated !== 0 ? sumRepeated / sumNonRepeated : 0;
+    const isWin = ratio >= 1.5 && ratio <= 1.8;
+    setG3Status(isWin ? 'success' : 'fail');
+  };
+
+  const runBatchGame3 = () => {
+    let batchWins = 0;
+    let batchLosses = 0;
+    const iterations = Math.max(1, Math.min(g3BatchSize, 100000));
+
+    for (let i = 0; i < iterations; i++) {
+      const codeCounts: Record<number, number> = {};
+      const codes = [];
+      for (let s = 0; s < 114; s++) {
+        const surahNum = s + 1;
+        const randomAyahs = Math.floor(Math.random() * 284) + 3;
+        const code = surahNum + randomAyahs;
+        codes.push(code);
+        codeCounts[code] = (codeCounts[code] || 0) + 1;
+      }
+
+      let sumRepeated = 0;
+      let sumNonRepeated = 0;
+      for (let j = 0; j < codes.length; j++) {
+        const code = codes[j];
+        if (codeCounts[code] > 1) {
+          sumRepeated += code;
+        } else {
+          sumNonRepeated += code;
+        }
+      }
+      const ratio = sumNonRepeated !== 0 ? sumRepeated / sumNonRepeated : 0;
+      if (ratio >= 1.5 && ratio <= 1.8) batchWins++;
+      else batchLosses++;
+    }
+
+    setG3Attempts(prev => prev + iterations);
+    setG3Wins(prev => prev + batchWins);
+    setG3Losses(prev => prev + batchLosses);
+  };
+
+  const resetGame3 = () => {
+    setG3Attempts(0);
+    setG3Wins(0);
+    setG3Losses(0);
+    setG3Data([]);
+    setG3Status('idle');
+    setG3LevelIdx(0);
+  };
+
+  const g3Sums = useMemo(() => {
+    let repeated = 0;
+    let nonRepeated = 0;
+    g3Data.forEach(d => {
+      if (d.isRepeated) repeated += d.code;
+      else nonRepeated += d.code;
+    });
+    return { repeated, nonRepeated };
+  }, [g3Data]);
 
   // --- RENDER ---
 
@@ -425,7 +536,176 @@ export default function QuranSymmetryGame() {
     </div>
   );
 
-  const renderGame2 = () => (
+
+  const renderGame3 = () => {
+    const ratio = g3Sums.nonRepeated !== 0 ? (g3Sums.repeated / g3Sums.nonRepeated).toFixed(3) : '0';
+
+    return (
+      <div className="space-y-8">
+        {renderBackButton()}
+
+        {/* Game Board */}
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
+          <div className="p-8 text-center bg-gradient-to-br from-orange-600 to-red-700 text-white">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-white bg-white/20 mb-4">
+              <Dices className="w-3 h-3" />
+              Game 3
+            </div>
+            <h2 className="text-2xl font-bold mb-2">Repeated / Non-Repeated Codes</h2>
+            <p className="text-orange-200 max-w-2xl mx-auto text-sm">
+              Generate random ayahs. Compute (Surah + Ayahs) = Code. Sum all repeated codes (A) and non-repeated codes (B). Win if A/B ≈ Golden Ratio (1.5 - 1.8).
+            </p>
+
+            {/* Scoreboard */}
+            <div className="mt-8 flex justify-center items-center gap-8">
+              <div className="text-center">
+                <div className="text-xs uppercase tracking-widest text-orange-300 mb-1">Repeated (A)</div>
+                <div className="text-2xl font-mono font-bold text-white">
+                  {g3Data.length > 0 ? g3Sums.repeated : '—'}
+                </div>
+              </div>
+
+              <div className="flex flex-col items-center gap-1">
+                <div className={`w-16 h-16 rounded-full border-2 flex items-center justify-center text-sm font-bold ${g3Status === 'idle' ? 'border-orange-500 text-orange-300' :
+                  g3Status === 'success' ? 'border-green-400 text-green-400 bg-green-400/10' :
+                    'border-red-400 text-red-400 bg-red-400/10'
+                  }`}>
+                  {g3Data.length > 0 ? (`${ratio}`) : 'A/B'}
+                </div>
+                {g3Status !== 'idle' && (
+                  <span className={`text-xs font-bold ${g3Status === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+                    {g3Status === 'success' ? 'WIN' : 'FAIL'}
+                  </span>
+                )}
+              </div>
+
+              <div className="text-center">
+                <div className="text-xs uppercase tracking-widest text-orange-300 mb-1">Non-Repeated (B)</div>
+                <div className="text-2xl font-mono font-bold text-white">
+                  {g3Data.length > 0 ? g3Sums.nonRepeated : '—'}
+                </div>
+              </div>
+            </div>
+
+            {/* Controls */}
+            <div className="mt-8 flex flex-wrap justify-center gap-4">
+              <button
+                onClick={generateGame3}
+                className="px-6 py-3 bg-white text-orange-700 rounded-xl font-bold shadow-lg hover:bg-orange-50 hover:scale-105 active:scale-95 transition flex items-center gap-2"
+              >
+                <Play className="w-5 h-5" />
+                Generate Level {g3LevelIdx + 1} (114 Surahs)
+              </button>
+            </div>
+            {g3Status !== 'idle' && (
+              <div className="mt-4 flex justify-center">
+                <button
+                  onClick={() => {
+                    if (g3LevelIdx < 2) {
+                      setG3LevelIdx(prev => prev + 1);
+                      generateGame3();
+                    } else {
+                      resetGame3();
+                    }
+                  }}
+                  className="px-6 py-2 bg-orange-800 text-white rounded-lg font-bold shadow hover:bg-orange-900 active:scale-95 transition"
+                >
+                  {g3LevelIdx < 2 ? `Next Level (${g3LevelIdx + 2}/3)` : 'Restart Game 3'}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Batch Mode Panel */}
+          <div className="bg-slate-50 border-t border-slate-200 p-6">
+            <div className="max-w-2xl mx-auto">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="font-bold text-slate-800">Batch Automation</h3>
+                  <p className="text-xs text-slate-500">Run thousands of randomized iterations instantly.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-slate-600">Batches:</span>
+                  <select
+                    value={g3BatchSize}
+                    onChange={(e) => setG3BatchSize(Number(e.target.value))}
+                    className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-bold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  >
+                    <option value={10}>10</option>
+                    <option value={100}>100</option>
+                    <option value={1000}>1,000</option>
+                    <option value={10000}>10,000</option>
+                    <option value={100000}>100,000</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <button
+                  onClick={runBatchGame3}
+                  className="flex-1 py-2.5 bg-slate-800 text-white rounded-lg font-bold hover:bg-slate-700 active:scale-[0.98] transition flex items-center justify-center gap-2"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Run {g3BatchSize.toLocaleString()} Iterations
+                </button>
+                {(g3Attempts > 0 || g3Wins > 0 || g3Losses > 0) && (
+                  <button
+                    onClick={resetGame3}
+                    className="px-4 py-2.5 text-slate-500 hover:text-slate-700 hover:bg-slate-200 rounded-lg font-medium transition"
+                  >
+                    Reset Stats
+                  </button>
+                )}
+              </div>
+
+              {/* Batch Stats */}
+              {(g3Attempts > 0 || g3Wins > 0 || g3Losses > 0) && (
+                <div className="mt-6 grid grid-cols-4 gap-4">
+                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
+                    <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">Total Runs</div>
+                    <div className="text-xl font-mono font-bold text-slate-800">{g3Attempts.toLocaleString()}</div>
+                  </div>
+                  <div className="bg-green-50 p-4 rounded-xl border border-green-200 shadow-sm text-center">
+                    <div className="text-[10px] uppercase tracking-wider text-green-600 font-bold mb-1">Successes</div>
+                    <div className="text-xl font-mono font-bold text-green-700">{g3Wins.toLocaleString()}</div>
+                  </div>
+                  <div className="bg-red-50 p-4 rounded-xl border border-red-200 shadow-sm text-center">
+                    <div className="text-[10px] uppercase tracking-wider text-red-600 font-bold mb-1">Failures</div>
+                    <div className="text-xl font-mono font-bold text-red-700">{g3Losses.toLocaleString()}</div>
+                  </div>
+                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
+                    <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">Win Rate</div>
+                    <div className="text-xl font-mono font-bold text-slate-800">
+                      {g3Attempts > 0 ? ((g3Wins / g3Attempts) * 100).toFixed(4) : '0'}%
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Detailed Data */}
+          {g3Data.length > 0 && (
+            <div className="p-6 bg-slate-50 border-t border-slate-200 max-h-96 overflow-y-auto">
+              <h3 className="font-bold text-slate-800 mb-4 text-center">Level {g3LevelIdx + 1} Codes</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                {g3Data.map((d) => (
+                  <div key={d.id} className={`p-2 rounded border text-center text-xs ${d.isRepeated ? 'bg-orange-100 border-orange-300' : 'bg-white border-slate-200'}`}>
+                    <div className="text-slate-500">S:{d.id} A:{d.ayahs}</div>
+                    <div className={`font-bold ${d.isRepeated ? 'text-orange-700' : 'text-slate-700'}`}>
+                      Code: {d.code}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+const renderGame2 = () => (
     <div className="space-y-8">
       {renderBackButton()}
 
@@ -664,7 +944,8 @@ export default function QuranSymmetryGame() {
         {activeTab === 'game' ? (
           selectedGame === null ? renderGameHub() :
             selectedGame === 'game1' ? renderGame1() :
-              renderGame2()
+            selectedGame === 'game2' ? renderGame2() :
+              renderGame3()
         ) : (
           <div className="grid md:grid-cols-2 gap-6">
             {/* Miracle 1: Land and Sea */}
