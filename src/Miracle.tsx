@@ -79,6 +79,7 @@ export default function QuranSymmetryGame() {
   const [g3Data, setG3Data] = useState<Array<{ id: number, ayahs: number, code: number, isRepeated: boolean }>>([]);
   const [g3Status, setG3Status] = useState<'idle' | 'success' | 'fail'>('idle');
   const [g3BatchSize, setG3BatchSize] = useState(1000);
+  const [g3BatchResults, setG3BatchResults] = useState<{A: number, B: number, ratio: number, success: boolean}[]>([]);
 
   const currentLevel = LEVELS[currentLevelIdx];
 
@@ -216,9 +217,10 @@ export default function QuranSymmetryGame() {
   // --- Game 3 Logic ---
   const generateGame3 = () => {
     setG3Attempts(prev => prev + 1);
+    const count = LEVELS[g3LevelIdx].count;
 
     // Generate codes
-    const newData = Array.from({ length: 114 }, (_, i) => {
+    const newData = Array.from({ length: count }, (_, i) => {
       const surahNum = i + 1;
       const randomAyahs = Math.floor(Math.random() * 284) + 3;
       const code = surahNum + randomAyahs;
@@ -254,11 +256,13 @@ export default function QuranSymmetryGame() {
     let batchWins = 0;
     let batchLosses = 0;
     const iterations = Math.max(1, Math.min(g3BatchSize, 100000));
+    const count = LEVELS[g3LevelIdx].count;
+    const batchResults = [];
 
     for (let i = 0; i < iterations; i++) {
       const codeCounts: Record<number, number> = {};
       const codes = [];
-      for (let s = 0; s < 114; s++) {
+      for (let s = 0; s < count; s++) {
         const surahNum = s + 1;
         const randomAyahs = Math.floor(Math.random() * 284) + 3;
         const code = surahNum + randomAyahs;
@@ -277,10 +281,23 @@ export default function QuranSymmetryGame() {
         }
       }
       const ratio = sumNonRepeated !== 0 ? sumRepeated / sumNonRepeated : 0;
-      if (ratio >= 1.5 && ratio <= 1.8) batchWins++;
-      else batchLosses++;
+      const success = ratio >= 1.5 && ratio <= 1.8;
+
+      batchResults.push({
+        A: sumRepeated,
+        B: sumNonRepeated,
+        ratio,
+        success
+      });
+
+      if (success) {
+        batchWins++;
+      } else {
+        batchLosses++;
+      }
     }
 
+    setG3BatchResults(batchResults);
     setG3Attempts(prev => prev + iterations);
     setG3Wins(prev => prev + batchWins);
     setG3Losses(prev => prev + batchLosses);
@@ -566,11 +583,16 @@ export default function QuranSymmetryGame() {
               </div>
 
               <div className="flex flex-col items-center gap-1">
-                <div className={`w-16 h-16 rounded-full border-2 flex items-center justify-center text-sm font-bold ${g3Status === 'idle' ? 'border-orange-500 text-orange-300' :
+                <div className={`w-20 h-20 rounded-full border-2 flex flex-col items-center justify-center ${g3Status === 'idle' ? 'border-orange-500 text-orange-300' :
                   g3Status === 'success' ? 'border-green-400 text-green-400 bg-green-400/10' :
                     'border-red-400 text-red-400 bg-red-400/10'
                   }`}>
-                  {g3Data.length > 0 ? (`${ratio}`) : 'A/B'}
+                  <div className="text-lg font-bold">
+                    {g3Data.length > 0 ? (`${ratio}`) : 'A/B'}
+                  </div>
+                  <div className="text-[9px] uppercase tracking-wider opacity-80 mt-0.5 font-bold">
+                    Target 1.618
+                  </div>
                 </div>
                 {g3Status !== 'idle' && (
                   <span className={`text-xs font-bold ${g3Status === 'success' ? 'text-green-400' : 'text-red-400'}`}>
@@ -594,23 +616,24 @@ export default function QuranSymmetryGame() {
                 className="px-6 py-3 bg-white text-orange-700 rounded-xl font-bold shadow-lg hover:bg-orange-50 hover:scale-105 active:scale-95 transition flex items-center gap-2"
               >
                 <Play className="w-5 h-5" />
-                Generate Level {g3LevelIdx + 1} (114 Surahs)
+                Generate Level {g3LevelIdx + 1} ({LEVELS[g3LevelIdx].count} Surahs)
               </button>
             </div>
             {g3Status !== 'idle' && (
               <div className="mt-4 flex justify-center">
                 <button
                   onClick={() => {
-                    if (g3LevelIdx < 2) {
+                    if (g3LevelIdx < LEVELS.length - 1) {
                       setG3LevelIdx(prev => prev + 1);
-                      generateGame3();
+                      setG3Status('idle');
+                      setG3Data([]);
                     } else {
                       resetGame3();
                     }
                   }}
                   className="px-6 py-2 bg-orange-800 text-white rounded-lg font-bold shadow hover:bg-orange-900 active:scale-95 transition"
                 >
-                  {g3LevelIdx < 2 ? `Next Level (${g3LevelIdx + 2}/3)` : 'Restart Game 3'}
+                  {g3LevelIdx < LEVELS.length - 1 ? `Next Level (${g3LevelIdx + 2}/${LEVELS.length})` : 'Restart Game 3'}
                 </button>
               </div>
             )}
@@ -660,26 +683,48 @@ export default function QuranSymmetryGame() {
 
               {/* Batch Stats */}
               {(g3Attempts > 0 || g3Wins > 0 || g3Losses > 0) && (
-                <div className="mt-6 grid grid-cols-4 gap-4">
-                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
-                    <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">Total Runs</div>
-                    <div className="text-xl font-mono font-bold text-slate-800">{g3Attempts.toLocaleString()}</div>
-                  </div>
-                  <div className="bg-green-50 p-4 rounded-xl border border-green-200 shadow-sm text-center">
-                    <div className="text-[10px] uppercase tracking-wider text-green-600 font-bold mb-1">Successes</div>
-                    <div className="text-xl font-mono font-bold text-green-700">{g3Wins.toLocaleString()}</div>
-                  </div>
-                  <div className="bg-red-50 p-4 rounded-xl border border-red-200 shadow-sm text-center">
-                    <div className="text-[10px] uppercase tracking-wider text-red-600 font-bold mb-1">Failures</div>
-                    <div className="text-xl font-mono font-bold text-red-700">{g3Losses.toLocaleString()}</div>
-                  </div>
-                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
-                    <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">Win Rate</div>
-                    <div className="text-xl font-mono font-bold text-slate-800">
-                      {g3Attempts > 0 ? ((g3Wins / g3Attempts) * 100).toFixed(4) : '0'}%
+                <>
+                  <div className="mt-6 grid grid-cols-4 gap-4">
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
+                      <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">Total Runs</div>
+                      <div className="text-xl font-mono font-bold text-slate-800">{g3Attempts.toLocaleString()}</div>
+                    </div>
+                    <div className="bg-green-50 p-4 rounded-xl border border-green-200 shadow-sm text-center">
+                      <div className="text-[10px] uppercase tracking-wider text-green-600 font-bold mb-1">Successes</div>
+                      <div className="text-xl font-mono font-bold text-green-700">{g3Wins.toLocaleString()}</div>
+                    </div>
+                    <div className="bg-red-50 p-4 rounded-xl border border-red-200 shadow-sm text-center">
+                      <div className="text-[10px] uppercase tracking-wider text-red-600 font-bold mb-1">Failures</div>
+                      <div className="text-xl font-mono font-bold text-red-700">{g3Losses.toLocaleString()}</div>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
+                      <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">Win Rate</div>
+                      <div className="text-xl font-mono font-bold text-slate-800">
+                        {g3Attempts > 0 ? ((g3Wins / g3Attempts) * 100).toFixed(4) : '0'}%
+                      </div>
                     </div>
                   </div>
-                </div>
+                  <div className="text-center mt-4">
+                    <button
+                      onClick={() => {
+                        const csvHeader = "Batch,Repeated_A,NonRepeated_B,Ratio,Success\n";
+                        const csvContent = g3BatchResults.map((r, i) => `${i + 1},${r.A},${r.B},${r.ratio.toFixed(3)},${r.success}`).join("\n");
+                        const blob = new Blob([csvHeader + csvContent], { type: 'text/csv' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'batch_results_game3.csv';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="text-orange-600 hover:text-orange-800 text-sm font-medium underline"
+                    >
+                      Export Full Batch Results (CSV)
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           </div>
