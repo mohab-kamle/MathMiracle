@@ -7,7 +7,7 @@ import { Play, RotateCcw, Lock, CheckCircle2, XCircle, Info, BookOpen, Globe, An
 const QURAN_ODD_GROUP_SUM = 6555;
 const QURAN_EVEN_GROUP_SUM = 6236;
 const GOLDEN_RATIO = 1.6180339887;
-const GOLDEN_RATIO_TOLERANCE = 0.15; // Allows values like 1.5 to 1.8 roughly
+const GOLDEN_RATIO_TOLERANCE = 0.382; // Allows values roughly 1.236 to 2.0
 
 const LEVELS = [
   { id: 1, count: 10, name: "The Novice", description: "Try to balance 10 Surahs (5 Even / 5 Odd)." },
@@ -104,6 +104,7 @@ export default function QuranSymmetryGame() {
   const [g3Status, setG3Status] = useState<'idle' | 'success' | 'fail'>('idle');
   const [g3BatchSize, setG3BatchSize] = useState(1000);
   const [g3BatchResults, setG3BatchResults] = useState<{A: number, B: number, ratio: number, success: boolean}[]>([]);
+  const [isG3AutoRunning, setIsG3AutoRunning] = useState(false);
 
   const currentLevel = LEVELS[currentLevelIdx];
 
@@ -111,6 +112,20 @@ export default function QuranSymmetryGame() {
   useEffect(() => {
     resetLevel();
   }, [currentLevelIdx]);
+
+  // Auto-run effect for Game 3
+  useEffect(() => {
+    let timeoutId: number;
+    if (isG3AutoRunning) {
+      const runCycle = () => {
+        runBatchGame3(100000);
+        timeoutId = setTimeout(runCycle, 0) as unknown as number;
+      };
+      timeoutId = setTimeout(runCycle, 0) as unknown as number;
+    }
+    return () => clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isG3AutoRunning, g3LevelIdx]); // Intentionally not including runBatchGame3 to avoid unnecessary re-renders
 
   // Reset when switching tabs
   const handleTabChange = (tab: 'game' | 'miracles') => {
@@ -271,15 +286,14 @@ export default function QuranSymmetryGame() {
 
     setG3Data(newData);
 
-    const ratio = sumNonRepeated !== 0 ? sumRepeated / sumNonRepeated : 0;
-    const isWin = ratio >= 1.5 && ratio <= 1.8;
-    setG3Status(isWin ? 'success' : 'fail');
+    const stats = getGoldenRatioStats(sumRepeated, sumNonRepeated, GOLDEN_RATIO_TOLERANCE);
+    setG3Status(stats.isClose ? 'success' : 'fail');
   };
 
-  const runBatchGame3 = () => {
+  const runBatchGame3 = (overrideIterations?: number) => {
     let batchWins = 0;
     let batchLosses = 0;
-    const iterations = Math.max(1, Math.min(g3BatchSize, 100000));
+    const iterations = overrideIterations !== undefined ? overrideIterations : Math.max(1, Math.min(g3BatchSize, 100000));
     const count = LEVELS[g3LevelIdx].count;
     const batchResults = [];
 
@@ -304,13 +318,13 @@ export default function QuranSymmetryGame() {
           sumNonRepeated += code;
         }
       }
-      const ratio = sumNonRepeated !== 0 ? sumRepeated / sumNonRepeated : 0;
-      const success = ratio >= 1.5 && ratio <= 1.8;
+      const stats = getGoldenRatioStats(sumRepeated, sumNonRepeated, GOLDEN_RATIO_TOLERANCE);
+      const success = stats.isClose;
 
       batchResults.push({
         A: sumRepeated,
         B: sumNonRepeated,
-        ratio,
+        ratio: stats.ratio,
         success
       });
 
@@ -602,7 +616,7 @@ export default function QuranSymmetryGame() {
             </div>
             <h2 className="text-2xl font-bold mb-2">Repeated / Non-Repeated Codes</h2>
             <p className="text-orange-200 max-w-2xl mx-auto text-sm">
-              Generate random ayahs. Compute (Surah + Ayahs) = Code. Sum all repeated codes (A) and non-repeated codes (B). Win if A/B ≈ Golden Ratio (1.5 - 1.8).
+              Generate random ayahs. Compute (Surah + Ayahs) = Code. Sum all repeated codes (A) and non-repeated codes (B). Win if the closest ratio is ≈ Golden Ratio (tolerance up to 2.0).
             </p>
 
             {/* Scoreboard */}
@@ -748,21 +762,35 @@ export default function QuranSymmetryGame() {
                 </div>
               </div>
 
-              <div className="flex gap-4">
-                <button
-                  onClick={runBatchGame3}
-                  className="flex-1 py-2.5 bg-slate-800 text-white rounded-lg font-bold hover:bg-slate-700 active:scale-[0.98] transition flex items-center justify-center gap-2"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  Run {g3BatchSize.toLocaleString()} Iterations
-                </button>
-                {(g3Attempts > 0 || g3Wins > 0 || g3Losses > 0) && (
+              <div className="flex flex-col gap-4">
+                <div className="flex gap-4">
                   <button
-                    onClick={resetGame3}
-                    className="px-4 py-2.5 text-slate-500 hover:text-slate-700 hover:bg-slate-200 rounded-lg font-medium transition"
+                    onClick={() => runBatchGame3()}
+                    className="flex-1 py-2.5 bg-slate-800 text-white rounded-lg font-bold hover:bg-slate-700 active:scale-[0.98] transition flex items-center justify-center gap-2"
+                    disabled={isG3AutoRunning}
                   >
-                    Reset Stats
+                    <RotateCcw className="w-4 h-4" />
+                    Run {g3BatchSize.toLocaleString()} Iterations
                   </button>
+                  <button
+                    onClick={() => setIsG3AutoRunning(!isG3AutoRunning)}
+                    className={`flex-1 py-2.5 text-white rounded-lg font-bold active:scale-[0.98] transition flex items-center justify-center gap-2 ${
+                      isG3AutoRunning ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'
+                    }`}
+                  >
+                    <Play className="w-4 h-4" />
+                    {isG3AutoRunning ? 'Stop Infinite' : 'Start Infinite (100k)'}
+                  </button>
+                </div>
+                {(g3Attempts > 0 || g3Wins > 0 || g3Losses > 0) && (
+                  <div className="flex justify-center">
+                    <button
+                      onClick={resetGame3}
+                      className="px-4 py-2.5 text-slate-500 hover:text-slate-700 hover:bg-slate-200 rounded-lg font-medium transition w-full"
+                    >
+                      Reset Stats
+                    </button>
+                  </div>
                 )}
               </div>
 
