@@ -6,6 +6,8 @@ import { Play, RotateCcw, Lock, CheckCircle2, XCircle, Info, BookOpen, Globe, An
 // The "Target" sums found in the actual Quran for the 57/57 even/odd groups
 const QURAN_ODD_GROUP_SUM = 6555;
 const QURAN_EVEN_GROUP_SUM = 6236;
+const GOLDEN_RATIO = 1.6180339887;
+const GOLDEN_RATIO_TOLERANCE = 0.15; // Allows values like 1.5 to 1.8 roughly
 
 const LEVELS = [
   { id: 1, count: 10, name: "The Novice", description: "Try to balance 10 Surahs (5 Even / 5 Odd)." },
@@ -49,6 +51,28 @@ const GAMES = [
 ];
 
 type GameId = typeof GAMES[number]['id'];
+
+function getGoldenRatioStats(a: number, b: number, tolerance: number) {
+  if (a === 0 || b === 0) {
+    return { ratio: 0, difference: 0, isClose: false, valid: false };
+  }
+
+  const ratio1 = a / b;
+  const ratio2 = b / a;
+
+  const diff1 = Math.abs(ratio1 - GOLDEN_RATIO);
+  const diff2 = Math.abs(ratio2 - GOLDEN_RATIO);
+
+  const closestRatio = diff1 < diff2 ? ratio1 : ratio2;
+  const closestDiff = Math.min(diff1, diff2);
+
+  return {
+    ratio: closestRatio,
+    difference: closestDiff,
+    isClose: closestDiff <= tolerance,
+    valid: true,
+  };
+}
 
 // --- COMPONENT ---
 
@@ -315,11 +339,16 @@ export default function QuranSymmetryGame() {
   const g3Sums = useMemo(() => {
     let repeated = 0;
     let nonRepeated = 0;
+    let even = 0;
+    let odd = 0;
     g3Data.forEach(d => {
       if (d.isRepeated) repeated += d.code;
       else nonRepeated += d.code;
+
+      if (d.code % 2 === 0) even += d.code;
+      else odd += d.code;
     });
-    return { repeated, nonRepeated };
+    return { repeated, nonRepeated, even, odd };
   }, [g3Data]);
 
   // --- RENDER ---
@@ -557,6 +586,9 @@ export default function QuranSymmetryGame() {
   const renderGame3 = () => {
     const ratio = g3Sums.nonRepeated !== 0 ? (g3Sums.repeated / g3Sums.nonRepeated).toFixed(3) : '0';
 
+    const repStats = getGoldenRatioStats(g3Sums.repeated, g3Sums.nonRepeated, GOLDEN_RATIO_TOLERANCE);
+    const evenOddStats = getGoldenRatioStats(g3Sums.even, g3Sums.odd, GOLDEN_RATIO_TOLERANCE);
+
     return (
       <div className="space-y-8">
         {renderBackButton()}
@@ -608,6 +640,59 @@ export default function QuranSymmetryGame() {
                 </div>
               </div>
             </div>
+
+            {/* Golden Ratio Check */}
+            {g3Data.length > 0 && (
+              <div className="mt-8 bg-white/10 rounded-xl p-6 border border-white/20 text-left">
+                <h3 className="text-lg font-bold mb-4 border-b border-white/20 pb-2">Golden Ratio Check</h3>
+
+                <div className="grid md:grid-cols-2 gap-6">
+                  {/* Even vs Odd */}
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-orange-200">Even vs. Odd</h4>
+                    <ul className="text-sm space-y-1">
+                      <li><span className="opacity-70">Even sum:</span> {g3Sums.even}</li>
+                      <li><span className="opacity-70">Odd sum:</span> {g3Sums.odd}</li>
+                      {evenOddStats.valid ? (
+                        <>
+                          <li><span className="opacity-70">Even / Odd:</span> {(g3Sums.even / g3Sums.odd).toFixed(4)}</li>
+                          <li><span className="opacity-70">Odd / Even:</span> {(g3Sums.odd / g3Sums.even).toFixed(4)}</li>
+                          <li><span className="opacity-70">Closest ratio to φ:</span> {evenOddStats.ratio.toFixed(4)}</li>
+                          <li><span className="opacity-70">Difference from φ:</span> {evenOddStats.difference.toFixed(4)}</li>
+                          <li className={`font-bold mt-2 ${evenOddStats.isClose ? 'text-green-400' : 'text-red-400'}`}>
+                            {evenOddStats.isClose ? "Close to the Golden Ratio" : "Not close to the Golden Ratio"}
+                          </li>
+                        </>
+                      ) : (
+                        <li className="text-red-400 font-bold">Invalid Ratio</li>
+                      )}
+                    </ul>
+                  </div>
+
+                  {/* Repeated vs Non-Repeated */}
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-orange-200">Repeated vs. Non-Repeated</h4>
+                    <ul className="text-sm space-y-1">
+                      <li><span className="opacity-70">Repeated sum:</span> {g3Sums.repeated}</li>
+                      <li><span className="opacity-70">Non-repeated sum:</span> {g3Sums.nonRepeated}</li>
+                      {repStats.valid ? (
+                        <>
+                          <li><span className="opacity-70">Repeated / Non-Repeated:</span> {(g3Sums.repeated / g3Sums.nonRepeated).toFixed(4)}</li>
+                          <li><span className="opacity-70">Non-repeated / Repeated:</span> {(g3Sums.nonRepeated / g3Sums.repeated).toFixed(4)}</li>
+                          <li><span className="opacity-70">Closest ratio to φ:</span> {repStats.ratio.toFixed(4)}</li>
+                          <li><span className="opacity-70">Difference from φ:</span> {repStats.difference.toFixed(4)}</li>
+                          <li className={`font-bold mt-2 ${repStats.isClose ? 'text-green-400' : 'text-red-400'}`}>
+                            {repStats.isClose ? "Close to the Golden Ratio" : "Not close to the Golden Ratio"}
+                          </li>
+                        </>
+                      ) : (
+                        <li className="text-red-400 font-bold">Invalid Ratio</li>
+                      )}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Controls */}
             <div className="mt-8 flex flex-wrap justify-center gap-4">
