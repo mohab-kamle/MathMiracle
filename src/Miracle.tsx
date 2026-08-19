@@ -4,16 +4,15 @@ import { Play, RotateCcw, Lock, CheckCircle2, XCircle, Info, BookOpen, Globe, An
 // --- CONSTANTS & DATA ---
 
 // The "Target" sums found in the actual Quran for the 57/57 even/odd groups
-const QURAN_ODD_GROUP_SUM = 6555;
-const QURAN_EVEN_GROUP_SUM = 6236;
 const GOLDEN_RATIO = 1.6180339887;
 const GOLDEN_RATIO_TOLERANCE = 0.382; // Allows values roughly 1.236 to 2.0
 
 const LEVELS = [
-  { id: 1, count: 10, name: "The Novice", description: "Try to balance 10 Surahs (5 Even / 5 Odd)." },
-  { id: 2, count: 40, name: "The Scholar", description: "Try to balance 40 Surahs (20 Even / 20 Odd)." },
-  { id: 3, count: 80, name: "The Hafiz", description: "Try to balance 80 Surahs (40 Even / 40 Odd)." },
-  { id: 4, count: 114, name: "The Miracle", description: "The Ultimate Challenge: 114 Surahs with Perfect Sums." }
+  { id: 1, count: 4, name: "The Starter", description: "Try to balance 4 Surahs (2 Even / 2 Odd)." },
+  { id: 2, count: 10, name: "The Novice", description: "Try to balance 10 Surahs (5 Even / 5 Odd)." },
+  { id: 3, count: 40, name: "The Scholar", description: "Try to balance 40 Surahs (20 Even / 20 Odd)." },
+  { id: 4, count: 80, name: "The Hafiz", description: "Try to balance 80 Surahs (40 Even / 40 Odd)." },
+  { id: 5, count: 114, name: "The Miracle", description: "The Ultimate Challenge: 114 Surahs with Perfect Sums." }
 ];
 
 // --- GAME DEFINITIONS ---
@@ -88,6 +87,7 @@ export default function QuranSymmetryGame() {
   const [gameStatus, setGameStatus] = useState<'idle' | 'success' | 'fail' | 'perfect'>('idle');
 
   // --- Game 2 State ---
+  const [g2LevelIdx, setG2LevelIdx] = useState(0);
   const [g2Attempts, setG2Attempts] = useState(0);
   const [g2Wins, setG2Wins] = useState(0);
   const [g2Losses, setG2Losses] = useState(0);
@@ -101,7 +101,7 @@ export default function QuranSymmetryGame() {
   const [g3Wins, setG3Wins] = useState(0);
   const [g3Losses, setG3Losses] = useState(0);
   const [g3Data, setG3Data] = useState<Array<{ id: number, ayahs: number, code: number, isRepeated: boolean }>>([]);
-  const [g3Status, setG3Status] = useState<'idle' | 'success' | 'fail'>('idle');
+  const [g3Status, setG3Status] = useState<'idle' | 'success' | 'fail' | 'perfect'>('idle');
   const [g3BatchSize, setG3BatchSize] = useState(1000);
   const [g3BatchResults, setG3BatchResults] = useState<{A: number, B: number, ratio: number, success: boolean}[]>([]);
   const [isG3AutoRunning, setIsG3AutoRunning] = useState(false);
@@ -112,6 +112,11 @@ export default function QuranSymmetryGame() {
   useEffect(() => {
     resetLevel();
   }, [currentLevelIdx]);
+
+  // Reset game 2 when level changes
+  useEffect(() => {
+    resetGame2();
+  }, [g2LevelIdx]);
 
   // Auto-run effect for Game 3
   useEffect(() => {
@@ -157,17 +162,17 @@ export default function QuranSymmetryGame() {
     const target = currentLevel.count / 2;
     const isSplitCorrect = evenCount === target && oddCount === target;
 
-    if (currentLevel.id === 4) {
-      if (isSplitCorrect) {
-        const evenGroupSum = newData.filter(d => d.isEven).reduce((acc, curr) => acc + curr.sum, 0);
-        const oddGroupSum = newData.filter(d => !d.isEven).reduce((acc, curr) => acc + curr.sum, 0);
-        const isPerfect = (oddGroupSum === QURAN_ODD_GROUP_SUM && evenGroupSum === QURAN_EVEN_GROUP_SUM);
-        setGameStatus(isPerfect ? 'perfect' : 'success');
-      } else {
-        setGameStatus('fail');
-      }
+    if (isSplitCorrect) {
+      const evenGroupSum = newData.filter(d => d.isEven).reduce((acc, curr) => acc + curr.sum, 0);
+      const oddGroupSum = newData.filter(d => !d.isEven).reduce((acc, curr) => acc + curr.sum, 0);
+      const targetSurahsOrder = currentLevel.count * (currentLevel.count + 1) / 2;
+      const targetTotalAyahs = newData.reduce((acc, curr) => acc + curr.ayahs, 0);
+
+      const isPerfect = (oddGroupSum === targetSurahsOrder && evenGroupSum === targetTotalAyahs) ||
+                        (oddGroupSum === targetTotalAyahs && evenGroupSum === targetSurahsOrder);
+      setGameStatus(isPerfect ? 'perfect' : 'success');
     } else {
-      setGameStatus(isSplitCorrect ? 'success' : 'fail');
+      setGameStatus('fail');
     }
   };
 
@@ -192,15 +197,17 @@ export default function QuranSymmetryGame() {
   // --- Game 2 Logic ---
   const generateGame2 = () => {
     setG2Attempts(prev => prev + 1);
-    const newData = Array.from({ length: 114 }, (_, i) => {
+    const count = LEVELS[g2LevelIdx].count;
+    const half = count / 2;
+    const newData = Array.from({ length: count }, (_, i) => {
       const surahNum = i + 1;
       const randomAyahs = Math.floor(Math.random() * 284) + 3;
       return { id: surahNum, ayahs: randomAyahs, isEvenAyahs: randomAyahs % 2 === 0 };
     });
     setG2Data(newData);
 
-    const firstHalf = newData.slice(0, 57);
-    const secondHalf = newData.slice(57);
+    const firstHalf = newData.slice(0, half);
+    const secondHalf = newData.slice(half);
     const evenInFirst = firstHalf.filter(d => d.isEvenAyahs).length;
     const evenInSecond = secondHalf.filter(d => d.isEvenAyahs).length;
 
@@ -217,15 +224,17 @@ export default function QuranSymmetryGame() {
     let batchWins = 0;
     let batchLosses = 0;
     const iterations = Math.max(1, Math.min(g2BatchSize, 100000));
+    const count = LEVELS[g2LevelIdx].count;
+    const half = count / 2;
 
     for (let i = 0; i < iterations; i++) {
       let evenInFirst = 0;
       let evenInSecond = 0;
-      for (let s = 0; s < 114; s++) {
+      for (let s = 0; s < count; s++) {
         const randomAyahs = Math.floor(Math.random() * 284) + 3;
         const isEven = randomAyahs % 2 === 0;
         if (isEven) {
-          if (s < 57) evenInFirst++;
+          if (s < half) evenInFirst++;
           else evenInSecond++;
         }
       }
@@ -248,8 +257,10 @@ export default function QuranSymmetryGame() {
     setG2Status('idle');
   };
 
-  const g2FirstHalf = g2Data.slice(0, 57);
-  const g2SecondHalf = g2Data.slice(57);
+  const g2Count = LEVELS[g2LevelIdx].count;
+  const g2Half = g2Count / 2;
+  const g2FirstHalf = g2Data.slice(0, g2Half);
+  const g2SecondHalf = g2Data.slice(g2Half);
   const g2EvenFirst = g2FirstHalf.filter(d => d.isEvenAyahs).length;
   const g2EvenSecond = g2SecondHalf.filter(d => d.isEvenAyahs).length;
 
@@ -287,7 +298,17 @@ export default function QuranSymmetryGame() {
     setG3Data(newData);
 
     const stats = getGoldenRatioStats(sumRepeated, sumNonRepeated, GOLDEN_RATIO_TOLERANCE);
-    setG3Status(stats.isClose ? 'success' : 'fail');
+    const targetSurahsOrder = count * (count + 1) / 2;
+    const targetTotalAyahs = newData.reduce((acc, curr) => acc + curr.ayahs, 0);
+
+    const isPerfect = (sumRepeated === targetSurahsOrder && sumNonRepeated === targetTotalAyahs) ||
+                      (sumRepeated === targetTotalAyahs && sumNonRepeated === targetSurahsOrder);
+
+    if (isPerfect) {
+      setG3Status('perfect');
+    } else {
+      setG3Status(stats.isClose ? 'success' : 'fail');
+    }
   };
 
   const runBatchGame3 = (overrideIterations?: number) => {
@@ -481,8 +502,8 @@ export default function QuranSymmetryGame() {
             </div>
           </div>
 
-          {/* Level 4 Special Sums Display */}
-          {currentLevel.id === 4 && surahData.length > 0 && (
+          {/* Divine Design Verification Display */}
+          {surahData.length > 0 && (
             <div className="mt-8 bg-slate-800 p-4 rounded-lg inline-block border border-slate-700">
               <h3 className="text-emerald-400 text-sm font-bold uppercase tracking-wider mb-3">Divine Design Verification</h3>
               <div className="grid grid-cols-2 gap-8 text-left">
@@ -490,18 +511,18 @@ export default function QuranSymmetryGame() {
                   <div className="text-xs text-slate-400">Sum of Odd Group</div>
                   <div className="font-mono text-xl flex items-center gap-2">
                     {sums.odd}
-                    {sums.odd === QURAN_ODD_GROUP_SUM
+                    {(sums.odd === (currentLevel.count * (currentLevel.count + 1) / 2) || sums.odd === surahData.reduce((a, b) => a + b.ayahs, 0))
                       ? <CheckCircle2 className="text-green-500 w-5 h-5" />
-                      : <span className="text-red-500 text-xs">(Target: {QURAN_ODD_GROUP_SUM})</span>}
+                      : <span className="text-red-500 text-xs">(Targets: {currentLevel.count * (currentLevel.count + 1) / 2} or {surahData.reduce((a, b) => a + b.ayahs, 0)})</span>}
                   </div>
                 </div>
                 <div>
                   <div className="text-xs text-slate-400">Sum of Even Group</div>
                   <div className="font-mono text-xl flex items-center gap-2">
                     {sums.even}
-                    {sums.even === QURAN_EVEN_GROUP_SUM
+                    {(sums.even === (currentLevel.count * (currentLevel.count + 1) / 2) || sums.even === surahData.reduce((a, b) => a + b.ayahs, 0))
                       ? <CheckCircle2 className="text-green-500 w-5 h-5" />
-                      : <span className="text-red-500 text-xs">(Target: {QURAN_EVEN_GROUP_SUM})</span>}
+                      : <span className="text-red-500 text-xs">(Targets: {currentLevel.count * (currentLevel.count + 1) / 2} or {surahData.reduce((a, b) => a + b.ayahs, 0)})</span>}
                   </div>
                 </div>
               </div>
@@ -533,12 +554,11 @@ export default function QuranSymmetryGame() {
 
               <span>
                 {gameStatus === 'fail' && "Imbalance Detected. Try again."}
-                {gameStatus === 'success' && currentLevel.id !== 4 && "Symmetry Achieved! You beat the odds."}
-                {gameStatus === 'success' && currentLevel.id === 4 && "Partial Symmetry! You got the 57/57 split (Level 1), but the Sums do not match the Quran (Level 2)."}
+                {gameStatus === 'success' && "Symmetry Achieved! You beat the odds, but the sums do not match the Divine Design exactly."}
                 {gameStatus === 'perfect' && "SUBHANALLAH! Impossible Match Found!"}
               </span>
             </div>
-            {currentLevel.id === 4 && gameStatus === 'success' && (
+            {gameStatus === 'success' && (
               <p className="text-sm mt-1 opacity-80">Getting the exact sums by luck is statistically virtually impossible.</p>
             )}
           </div>
@@ -552,17 +572,46 @@ export default function QuranSymmetryGame() {
               <p>Press Generate to create a random set of Surahs</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2">
-              {surahData.map((data) => (
-                <div key={data.id} className={`p-2 rounded border text-xs flex flex-col items-center transition-all ${data.isEven ? 'bg-blue-50 border-blue-200' : 'bg-orange-50 border-orange-200'
-                  }`}>
-                  <div className="font-bold opacity-50">Surah {data.id}</div>
-                  <div className="text-[10px] text-slate-500">{data.ayahs} Ayahs</div>
-                  <div className={`font-mono font-bold mt-1 ${data.isEven ? 'text-blue-600' : 'text-orange-600'}`}>
-                    Sum: {data.sum}
-                  </div>
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Even Results */}
+              <div>
+                <h4 className="text-sm font-bold text-slate-600 mb-3 flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                  Even Results
+                  <span className="ml-auto text-xs font-normal text-slate-400">{surahData.filter(d => d.isEven).length} surahs</span>
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {surahData.filter(d => d.isEven).map((data) => (
+                    <div key={data.id} className="p-2 rounded border text-xs flex flex-col items-center transition-all bg-blue-50 border-blue-200">
+                      <div className="font-bold opacity-50">Surah {data.id}</div>
+                      <div className="text-[10px] text-slate-500">{data.ayahs} Ayahs</div>
+                      <div className="font-mono font-bold mt-1 text-blue-600">
+                        Sum: {data.sum}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
+
+              {/* Odd Results */}
+              <div>
+                <h4 className="text-sm font-bold text-slate-600 mb-3 flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+                  Odd Results
+                  <span className="ml-auto text-xs font-normal text-slate-400">{surahData.filter(d => !d.isEven).length} surahs</span>
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {surahData.filter(d => !d.isEven).map((data) => (
+                    <div key={data.id} className="p-2 rounded border text-xs flex flex-col items-center transition-all bg-orange-50 border-orange-200">
+                      <div className="font-bold opacity-50">Surah {data.id}</div>
+                      <div className="text-[10px] text-slate-500">{data.ayahs} Ayahs</div>
+                      <div className="font-mono font-bold mt-1 text-orange-600">
+                        Sum: {data.sum}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -577,19 +626,19 @@ export default function QuranSymmetryGame() {
         <ul className="space-y-3 text-slate-600 text-sm">
           <li className="flex gap-3">
             <div className="bg-slate-100 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0">1</div>
-            <p>In the Quran, there are 114 Surahs. The "Sum" is calculated by adding the Surah Number + Number of Ayahs.</p>
+            <p>In the real Quran, there are 114 Surahs. The "Sum" is calculated by adding the Surah Number + Number of Ayahs.</p>
           </li>
           <li className="flex gap-3">
             <div className="bg-slate-100 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0">2</div>
-            <p>Remarkably, exactly <strong>57</strong> sums are Even, and <strong>57</strong> are Odd. (This is difficult to get by luck, ~7% chance).</p>
+            <p>Remarkably, exactly <strong>half</strong> the sums are Even, and <strong>half</strong> are Odd. (This is difficult to get by luck as you scale up).</p>
           </li>
           <li className="flex gap-3">
             <div className="bg-slate-100 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0">3</div>
-            <p><strong>The Real Miracle:</strong> The sum of the "Odd Result" Surah numbers equals the total sum of the Quran (6555). The sum of the "Even Result" Surah numbers equals the total Ayahs in the Quran (6236).</p>
+            <p><strong>The Real Miracle:</strong> The sum of one group equals the total Surahs order (e.g. 6555 for 114 Surahs). The sum of the other group equals the total Ayahs in the generated book (e.g. 6236 for the real Quran).</p>
           </li>
           <li className="flex gap-3">
             <div className="bg-emerald-100 text-emerald-800 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0">!</div>
-            <p>As you can see in Level 4, while you might hit the 57/57 split by luck, matching the sums is statistically impossible without deliberate placement.</p>
+            <p>As you can see, while you might occasionally hit the perfect split by luck, matching the sums to the Divine Design is statistically virtually impossible.</p>
           </li>
         </ul>
       </div>
@@ -630,7 +679,7 @@ export default function QuranSymmetryGame() {
 
               <div className="flex flex-col items-center gap-1">
                 <div className={`w-20 h-20 rounded-full border-2 flex flex-col items-center justify-center ${g3Status === 'idle' ? 'border-orange-500 text-orange-300' :
-                  g3Status === 'success' ? 'border-green-400 text-green-400 bg-green-400/10' :
+                  (g3Status === 'success' || g3Status === 'perfect') ? 'border-green-400 text-green-400 bg-green-400/10' :
                     'border-red-400 text-red-400 bg-red-400/10'
                   }`}>
                   <div className="text-lg font-bold">
@@ -641,8 +690,8 @@ export default function QuranSymmetryGame() {
                   </div>
                 </div>
                 {g3Status !== 'idle' && (
-                  <span className={`text-xs font-bold ${g3Status === 'success' ? 'text-green-400' : 'text-red-400'}`}>
-                    {g3Status === 'success' ? 'WIN' : 'FAIL'}
+                  <span className={`text-xs font-bold ${(g3Status === 'success' || g3Status === 'perfect') ? 'text-green-400' : 'text-red-400'}`}>
+                    {(g3Status === 'success' || g3Status === 'perfect') ? 'WIN' : 'FAIL'}
                   </span>
                 )}
               </div>
@@ -654,6 +703,39 @@ export default function QuranSymmetryGame() {
                 </div>
               </div>
             </div>
+
+            {/* Divine Design Verification Display */}
+            {g3Data.length > 0 && (
+              <div className="mt-8 bg-black/20 p-4 rounded-lg inline-block border border-orange-500/30 text-left">
+                <h3 className="text-orange-400 text-sm font-bold uppercase tracking-wider mb-3 text-center">Divine Design Verification</h3>
+                <div className="grid grid-cols-2 gap-8">
+                  <div>
+                    <div className="text-xs text-orange-300/70">Repeated (A)</div>
+                    <div className="font-mono text-xl flex items-center gap-2">
+                      {g3Sums.repeated}
+                      {(g3Sums.repeated === (LEVELS[g3LevelIdx].count * (LEVELS[g3LevelIdx].count + 1) / 2) || g3Sums.repeated === g3Data.reduce((a, b) => a + b.ayahs, 0))
+                        ? <CheckCircle2 className="text-green-400 w-5 h-5" />
+                        : <span className="text-red-400 text-xs">(Targets: {LEVELS[g3LevelIdx].count * (LEVELS[g3LevelIdx].count + 1) / 2} or {g3Data.reduce((a, b) => a + b.ayahs, 0)})</span>}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-orange-300/70">Non-Repeated (B)</div>
+                    <div className="font-mono text-xl flex items-center gap-2">
+                      {g3Sums.nonRepeated}
+                      {(g3Sums.nonRepeated === (LEVELS[g3LevelIdx].count * (LEVELS[g3LevelIdx].count + 1) / 2) || g3Sums.nonRepeated === g3Data.reduce((a, b) => a + b.ayahs, 0))
+                        ? <CheckCircle2 className="text-green-400 w-5 h-5" />
+                        : <span className="text-red-400 text-xs">(Targets: {LEVELS[g3LevelIdx].count * (LEVELS[g3LevelIdx].count + 1) / 2} or {g3Data.reduce((a, b) => a + b.ayahs, 0)})</span>}
+                    </div>
+                  </div>
+                </div>
+                {g3Status === 'perfect' && (
+                  <div className="mt-4 p-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded text-center font-bold">
+                    <CheckCircle2 className="inline w-5 h-5 mr-2" />
+                    SUBHANALLAH! Impossible Match Found!
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Golden Ratio Check */}
             {g3Data.length > 0 && (
@@ -867,6 +949,24 @@ const renderGame2 = () => (
     <div className="space-y-8">
       {renderBackButton()}
 
+      {/* Level Selector */}
+      <div className="flex flex-wrap gap-4 justify-center">
+        {LEVELS.map((lvl, idx) => (
+          <button
+            key={lvl.id}
+            onClick={() => setG2LevelIdx(idx)}
+            className={`relative flex flex-col items-center p-4 rounded-xl border-2 w-40 transition-all
+              ${g2LevelIdx === idx
+                ? 'border-violet-600 bg-violet-50 scale-105 shadow-md'
+                : 'border-slate-200 bg-white hover:border-violet-300 text-slate-400 hover:text-slate-600'}`}
+          >
+            <span className="text-sm uppercase font-bold tracking-wider mb-1">Level {lvl.id}</span>
+            <span className="text-2xl font-black">{lvl.count}</span>
+            <span className="text-xs">Surahs</span>
+          </button>
+        ))}
+      </div>
+
       {/* Game Board */}
       <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
         <div className="p-8 text-center bg-gradient-to-br from-violet-900 to-purple-900 text-white">
@@ -876,13 +976,13 @@ const renderGame2 = () => (
           </div>
           <h2 className="text-2xl font-bold mb-2">Halving Symmetry</h2>
           <p className="text-purple-200 max-w-2xl mx-auto text-sm">
-            Generate random ayah counts for all 114 surahs. Split them in half (1–57 & 58–114) and check if the number of surahs with <strong>even</strong> ayah counts is the same in both halves.
+            Generate random ayah counts for {g2Count} surahs. Split them in half (1–{g2Half} & {g2Half + 1}–{g2Count}) and check if the number of surahs with <strong>even</strong> ayah counts is the same in both halves.
           </p>
 
           {/* Scoreboard */}
           <div className="mt-8 flex justify-center items-center gap-8">
             <div className="text-center">
-              <div className="text-xs uppercase tracking-widest text-purple-300 mb-1">First Half (1–57)</div>
+              <div className="text-xs uppercase tracking-widest text-purple-300 mb-1">First Half (1–{g2Half})</div>
               <div className="text-xs uppercase tracking-widest text-purple-400 mb-1">Even Ayah Surahs</div>
               <div className={`text-4xl font-mono font-bold ${g2Data.length > 0 && g2EvenFirst === g2EvenSecond ? 'text-green-400' : 'text-white'}`}>
                 {g2Data.length > 0 ? g2EvenFirst : '—'}
@@ -899,7 +999,7 @@ const renderGame2 = () => (
             </div>
 
             <div className="text-center">
-              <div className="text-xs uppercase tracking-widest text-purple-300 mb-1">Second Half (58–114)</div>
+              <div className="text-xs uppercase tracking-widest text-purple-300 mb-1">Second Half ({g2Half + 1}–{g2Count})</div>
               <div className="text-xs uppercase tracking-widest text-purple-400 mb-1">Even Ayah Surahs</div>
               <div className={`text-4xl font-mono font-bold ${g2Data.length > 0 && g2EvenFirst === g2EvenSecond ? 'text-green-400' : 'text-white'}`}>
                 {g2Data.length > 0 ? g2EvenSecond : '—'}
@@ -985,7 +1085,7 @@ const renderGame2 = () => (
           {g2Data.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-slate-400 mt-20">
               <RotateCcw className="w-12 h-12 mb-4 opacity-20" />
-              <p>Press Generate to create random ayah counts for 114 Surahs</p>
+              <p>Press Generate to create random ayah counts for {g2Count} Surahs</p>
             </div>
           ) : (
             <div className="grid md:grid-cols-2 gap-6">
@@ -993,7 +1093,7 @@ const renderGame2 = () => (
               <div>
                 <h4 className="text-sm font-bold text-slate-600 mb-3 flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-violet-500"></div>
-                  First Half — Surahs 1–57
+                  First Half — Surahs 1–{g2Half}
                   <span className="ml-auto text-xs font-normal text-slate-400">{g2EvenFirst} even</span>
                 </h4>
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
@@ -1016,7 +1116,7 @@ const renderGame2 = () => (
               <div>
                 <h4 className="text-sm font-bold text-slate-600 mb-3 flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-purple-500"></div>
-                  Second Half — Surahs 58–114
+                  Second Half — Surahs {g2Half + 1}–{g2Count}
                   <span className="ml-auto text-xs font-normal text-slate-400">{g2EvenSecond} even</span>
                 </h4>
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
@@ -1048,11 +1148,11 @@ const renderGame2 = () => (
         <ul className="space-y-3 text-slate-600 text-sm">
           <li className="flex gap-3">
             <div className="bg-slate-100 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0">1</div>
-            <p>The Quran has 114 surahs. If you split them in half (surahs 1–57 and 58–114), each half has exactly the same number of surahs with an <strong>even</strong> number of ayahs.</p>
+            <p>The real Quran has 114 surahs. If you split them in half (surahs 1–57 and 58–114), each half has exactly the same number of surahs with an <strong>even</strong> number of ayahs.</p>
           </li>
           <li className="flex gap-3">
             <div className="bg-slate-100 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0">2</div>
-            <p>In this simulation, we assign <strong>random</strong> ayah counts to all 114 surahs and check whether this symmetry occurs.</p>
+            <p>In this simulation, we assign <strong>random</strong> ayah counts to {g2Count} surahs and check whether this symmetry occurs.</p>
           </li>
           <li className="flex gap-3">
             <div className="bg-slate-100 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0">3</div>
