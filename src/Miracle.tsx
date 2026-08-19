@@ -47,9 +47,47 @@ const GAMES = [
     border: 'border-orange-200 hover:border-orange-400',
     glow: 'hover:shadow-orange-200/50',
   },
+  {
+    id: 'game4' as const,
+    title: 'The Primes Miracle',
+    subtitle: 'Game 4',
+    description: 'Check if the sum of prime ayah counts plus their corresponding nth primes equals the total number of ayahs.',
+    icon: Dices,
+    gradient: 'from-blue-500 to-indigo-600',
+    border: 'border-blue-200 hover:border-blue-400',
+    glow: 'hover:shadow-blue-200/50',
+  },
 ];
 
-type GameId = typeof GAMES[number]['id'];
+type GameId = typeof GAMES[number]['id'] | 'game4';
+
+
+
+function isPrime(num: number): boolean {
+  if (num <= 1) return false;
+  if (num <= 3) return true;
+  if (num % 2 === 0 || num % 3 === 0) return false;
+  let i = 5;
+  while (i * i <= num) {
+    if (num % i === 0 || num % (i + 2) === 0) return false;
+    i += 6;
+  }
+  return true;
+}
+
+const PRIMES: number[] = [];
+let _num = 2;
+while (PRIMES.length < 300) {
+  if (isPrime(_num)) {
+    PRIMES.push(_num);
+  }
+  _num++;
+}
+
+function getNthPrime(n: number): number {
+  if (n <= 0) return 0;
+  return PRIMES[n - 1] || 0;
+}
 
 function getGoldenRatioStats(a: number, b: number, tolerance: number) {
   if (a === 0 || b === 0) {
@@ -105,6 +143,15 @@ export default function QuranSymmetryGame() {
   const [g3BatchSize, setG3BatchSize] = useState(1000);
   const [g3BatchResults, setG3BatchResults] = useState<{A: number, B: number, ratio: number, success: boolean}[]>([]);
   const [isG3AutoRunning, setIsG3AutoRunning] = useState(false);
+
+
+  // --- Game 4 State ---
+  const [g4Attempts, setG4Attempts] = useState(0);
+  const [g4Wins, setG4Wins] = useState(0);
+  const [g4Losses, setG4Losses] = useState(0);
+  const [g4Data, setG4Data] = useState<Array<{ id: number, ayahs: number, isPrimeAyahs: boolean, nthPrime: number }>>([]);
+  const [g4Status, setG4Status] = useState<'idle' | 'success' | 'fail'>('idle');
+  const [g4BatchSize, setG4BatchSize] = useState(1000);
 
   const currentLevel = LEVELS[currentLevelIdx];
 
@@ -387,6 +434,81 @@ export default function QuranSymmetryGame() {
   }, [g3Data]);
 
   // --- RENDER ---
+
+
+  // --- Game 4 Logic ---
+  const generateGame4 = () => {
+    setG4Attempts(prev => prev + 1);
+
+    const count = 114;
+    let totalAyahs = 0;
+
+    const newData = Array.from({ length: count }, (_, i) => {
+      const surahNum = i + 1;
+      const randomAyahs = Math.floor(Math.random() * 284) + 3;
+      totalAyahs += randomAyahs;
+
+      const isPrimeAyahs = isPrime(randomAyahs);
+      const nthPrime = isPrimeAyahs ? getNthPrime(randomAyahs) : 0;
+
+      return { id: surahNum, ayahs: randomAyahs, isPrimeAyahs, nthPrime };
+    });
+
+    setG4Data(newData);
+
+    let sumPrimeAyahs = 0;
+    let sumNthPrimes = 0;
+
+    newData.forEach(d => {
+      if (d.isPrimeAyahs) {
+        sumPrimeAyahs += d.ayahs;
+        sumNthPrimes += d.nthPrime;
+      }
+    });
+
+    const totalPrimesSum = sumPrimeAyahs + sumNthPrimes;
+
+    if (totalPrimesSum === totalAyahs) {
+      setG4Status('success');
+      setG4Wins(prev => prev + 1);
+    } else {
+      setG4Status('fail');
+      setG4Losses(prev => prev + 1);
+    }
+  };
+
+  const runBatchGame4 = () => {
+    let batchWins = 0;
+    let batchLosses = 0;
+    const iterations = Math.max(1, Math.min(g4BatchSize, 100000));
+
+    for (let i = 0; i < iterations; i++) {
+      let totalAyahs = 0;
+      let sumPrimeAyahs = 0;
+      let sumNthPrimes = 0;
+
+      for (let s = 0; s < 114; s++) {
+        const randomAyahs = Math.floor(Math.random() * 284) + 3;
+        totalAyahs += randomAyahs;
+
+        if (isPrime(randomAyahs)) {
+          sumPrimeAyahs += randomAyahs;
+          sumNthPrimes += getNthPrime(randomAyahs);
+        }
+      }
+
+      const totalPrimesSum = sumPrimeAyahs + sumNthPrimes;
+      if (totalPrimesSum === totalAyahs) {
+        batchWins++;
+      } else {
+        batchLosses++;
+      }
+    }
+
+    setG4Wins(prev => prev + batchWins);
+    setG4Losses(prev => prev + batchLosses);
+    setG4Attempts(prev => prev + iterations);
+  };
 
   const renderGameHub = () => (
     <div className="space-y-8">
@@ -1167,6 +1289,139 @@ const renderGame2 = () => (
     </div>
   );
 
+
+  const renderGame4 = () => {
+    return (
+      <div className="space-y-8">
+        {renderBackButton()}
+
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
+          <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-8 text-center relative overflow-hidden">
+            <div className="relative z-10">
+              <div className="flex items-center justify-center space-x-3 mb-4 opacity-90">
+                <Dices className="w-6 h-6 text-white" />
+                <span className="text-white font-medium tracking-wider uppercase text-sm">Game 4</span>
+              </div>
+              <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-6 drop-shadow-md">
+                The Primes Miracle
+              </h1>
+              <p className="text-blue-100 max-w-2xl mx-auto text-lg leading-relaxed">
+                Generate random ayah counts for 114 Surahs. For each prime ayah count, find its corresponding nth prime.
+                Win if the sum of prime ayah counts (m) plus the sum of nth primes (pm) equals the total number of ayahs generated.
+              </p>
+            </div>
+          </div>
+
+          <div className="p-8">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+              <button
+                onClick={() => { generateGame4(); }}
+                className="flex items-center justify-center space-x-2 px-8 py-4 bg-white border-2 border-slate-200 hover:border-blue-500 hover:bg-blue-50 text-slate-700 font-bold rounded-xl transition-all w-full sm:w-auto shadow-sm"
+              >
+                <Play className="w-5 h-5 text-blue-500" />
+                <span>Generate Single Run</span>
+              </button>
+            </div>
+
+            {/* Batch execution */}
+            <div className="mt-8 bg-slate-50 rounded-xl p-6 border border-slate-100">
+              <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                <div>
+                  <h3 className="font-bold text-slate-800 flex items-center space-x-2">
+                    <Zap className="w-5 h-5 text-indigo-500" />
+                    <span>Batch Automation</span>
+                  </h3>
+                  <p className="text-sm text-slate-500 mt-1">Run thousands of randomized iterations instantly.</p>
+                </div>
+
+                <div className="flex items-center space-x-4 w-full md:w-auto">
+                  <div className="flex items-center space-x-2">
+                    <label className="text-sm text-slate-600">Batches:</label>
+                    <select
+                      value={g4BatchSize}
+                      onChange={(e) => setG4BatchSize(Number(e.target.value))}
+                      className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                    >
+                      <option value={10}>10</option>
+                      <option value={100}>100</option>
+                      <option value={1000}>1,000</option>
+                      <option value={10000}>10,000</option>
+                    </select>
+                  </div>
+                  <button
+                    onClick={runBatchGame4}
+                    className="flex items-center justify-center space-x-2 px-6 py-2 bg-slate-800 hover:bg-slate-900 text-white font-medium rounded-lg transition-colors flex-1 md:flex-none shadow-md"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    <span>Run {g4BatchSize.toLocaleString()}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-6">
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 text-center">
+            <p className="text-sm text-slate-500 uppercase tracking-wider mb-2 font-medium">Total Attempts</p>
+            <p className="text-3xl font-black text-slate-800">{g4Attempts.toLocaleString()}</p>
+          </div>
+          <div className="bg-emerald-50 rounded-xl p-6 shadow-sm border border-emerald-100 text-center relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-2 opacity-20">
+              <CheckCircle2 className="w-12 h-12 text-emerald-500" />
+            </div>
+            <p className="text-sm text-emerald-600 uppercase tracking-wider mb-2 font-bold">Miracles Found</p>
+            <p className="text-3xl font-black text-emerald-600 relative z-10">{g4Wins.toLocaleString()}</p>
+          </div>
+          <div className="bg-rose-50 rounded-xl p-6 shadow-sm border border-rose-100 text-center">
+            <p className="text-sm text-rose-600 uppercase tracking-wider mb-2 font-bold">Failed Attempts</p>
+            <p className="text-3xl font-black text-rose-600">{g4Losses.toLocaleString()}</p>
+          </div>
+        </div>
+
+        {/* Current Result */}
+        {g4Data.length > 0 && (
+          <div className={`rounded-xl p-6 border-2 transition-all duration-500 ${
+            g4Status === 'success' ? 'bg-emerald-50 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.2)]' : 'bg-rose-50 border-rose-200'
+          }`}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className={`font-bold text-lg flex items-center space-x-2 ${g4Status === 'success' ? 'text-emerald-700' : 'text-rose-700'}`}>
+                {g4Status === 'success' ? <CheckCircle2 className="w-6 h-6" /> : <XCircle className="w-6 h-6" />}
+                <span>{g4Status === 'success' ? 'Miracle Verified!' : 'Miracle Not Found'}</span>
+              </h3>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+              <div className="bg-white rounded-lg p-4 shadow-sm">
+                <p className="text-xs text-slate-500 uppercase font-medium mb-1">Total Ayahs</p>
+                <p className="text-2xl font-bold text-slate-800">{g4Data.reduce((acc, curr) => acc + curr.ayahs, 0)}</p>
+              </div>
+              <div className="bg-white rounded-lg p-4 shadow-sm">
+                <p className="text-xs text-slate-500 uppercase font-medium mb-1">Sum of Prime Ayahs (m)</p>
+                <p className="text-2xl font-bold text-slate-800">
+                  {g4Data.filter(d => d.isPrimeAyahs).reduce((acc, curr) => acc + curr.ayahs, 0)}
+                </p>
+              </div>
+              <div className="bg-white rounded-lg p-4 shadow-sm">
+                <p className="text-xs text-slate-500 uppercase font-medium mb-1">Sum of nth Primes (pm)</p>
+                <p className="text-2xl font-bold text-slate-800">
+                  {g4Data.filter(d => d.isPrimeAyahs).reduce((acc, curr) => acc + curr.nthPrime, 0)}
+                </p>
+              </div>
+              <div className="bg-white rounded-lg p-4 shadow-sm border-2 border-indigo-100">
+                <p className="text-xs text-indigo-500 uppercase font-bold mb-1">Total m + pm</p>
+                <p className="text-2xl font-black text-indigo-700">
+                  {g4Data.filter(d => d.isPrimeAyahs).reduce((acc, curr) => acc + curr.ayahs + curr.nthPrime, 0)}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
       {/* Header */}
@@ -1203,7 +1458,8 @@ const renderGame2 = () => (
           selectedGame === null ? renderGameHub() :
             selectedGame === 'game1' ? renderGame1() :
             selectedGame === 'game2' ? renderGame2() :
-              renderGame3()
+            selectedGame === 'game3' ? renderGame3() :
+              renderGame4()
         ) : (
           <div className="grid md:grid-cols-2 gap-6">
             {/* Miracle 1: Land and Sea */}
