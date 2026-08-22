@@ -146,6 +146,8 @@ export default function QuranSymmetryGame() {
 
 
   // --- Game 4 State ---
+  const [g4LevelIdx, setG4LevelIdx] = useState(0);
+  const [isG4AutoRunning, setIsG4AutoRunning] = useState(false);
   const [g4Attempts, setG4Attempts] = useState(0);
   const [g4Wins, setG4Wins] = useState(0);
   const [g4Losses, setG4Losses] = useState(0);
@@ -165,6 +167,19 @@ export default function QuranSymmetryGame() {
     resetGame2();
   }, [g2LevelIdx]);
 
+  const resetGame4 = () => {
+    setG4Attempts(0);
+    setG4Wins(0);
+    setG4Losses(0);
+    setG4Data([]);
+    setG4Status('idle');
+    setIsG4AutoRunning(false);
+  };
+
+  useEffect(() => {
+    resetGame4();
+  }, [g4LevelIdx]);
+
   // Auto-run effect for Game 3
   useEffect(() => {
     let timeoutId: number;
@@ -178,6 +193,20 @@ export default function QuranSymmetryGame() {
     return () => clearTimeout(timeoutId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isG3AutoRunning, g3LevelIdx]); // Intentionally not including runBatchGame3 to avoid unnecessary re-renders
+
+  // Auto-run effect for Game 4
+  useEffect(() => {
+    let timeoutId: number;
+    if (isG4AutoRunning) {
+      const runCycle = () => {
+        runBatchGame4(100000);
+        timeoutId = setTimeout(runCycle, 0) as unknown as number;
+      };
+      timeoutId = setTimeout(runCycle, 0) as unknown as number;
+    }
+    return () => clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isG4AutoRunning, g4LevelIdx]); // Intentionally not including runBatchGame4 to avoid unnecessary re-renders
 
   // Reset when switching tabs
   const handleTabChange = (tab: 'game' | 'miracles') => {
@@ -440,7 +469,7 @@ export default function QuranSymmetryGame() {
   const generateGame4 = () => {
     setG4Attempts(prev => prev + 1);
 
-    const count = 114;
+    const count = LEVELS[g4LevelIdx].count;
     let totalAyahs = 0;
 
     const newData = Array.from({ length: count }, (_, i) => {
@@ -477,17 +506,18 @@ export default function QuranSymmetryGame() {
     }
   };
 
-  const runBatchGame4 = () => {
+  const runBatchGame4 = (overrideIterations?: number) => {
     let batchWins = 0;
     let batchLosses = 0;
-    const iterations = Math.max(1, Math.min(g4BatchSize, 100000));
+    const iterations = overrideIterations !== undefined ? overrideIterations : Math.max(1, Math.min(g4BatchSize, 100000));
+    const count = LEVELS[g4LevelIdx].count;
 
     for (let i = 0; i < iterations; i++) {
       let totalAyahs = 0;
       let sumPrimeAyahs = 0;
       let sumNthPrimes = 0;
 
-      for (let s = 0; s < 114; s++) {
+      for (let s = 0; s < count; s++) {
         const randomAyahs = Math.floor(Math.random() * 284) + 3;
         totalAyahs += randomAyahs;
 
@@ -1291,6 +1321,8 @@ const renderGame2 = () => (
 
 
   const renderGame4 = () => {
+    const winRate = g4Attempts > 0 ? ((g4Wins / g4Attempts) * 100).toFixed(6) : "0.000000";
+
     return (
       <div className="space-y-8">
         {renderBackButton()}
@@ -1306,9 +1338,26 @@ const renderGame2 = () => (
                 The Primes Miracle
               </h1>
               <p className="text-blue-100 max-w-2xl mx-auto text-lg leading-relaxed">
-                Generate random ayah counts for 114 Surahs. For each prime ayah count, find its corresponding nth prime.
+                Generate random ayah counts. For each prime ayah count, find its corresponding nth prime.
                 Win if the sum of prime ayah counts (m) plus the sum of nth primes (pm) equals the total number of ayahs generated.
               </p>
+
+              {/* Level Selector */}
+              <div className="flex flex-wrap justify-center gap-3 mt-8">
+                {LEVELS.map((level, idx) => (
+                  <button
+                    key={level.id}
+                    onClick={() => setG4LevelIdx(idx)}
+                    className={`px-5 py-2 rounded-full font-bold text-sm transition-all duration-300 relative
+                      ${g4LevelIdx === idx
+                        ? 'bg-white text-indigo-700 shadow-lg scale-105 ring-2 ring-white/50'
+                        : 'bg-white/10 text-white hover:bg-white/20 border border-white/20'
+                      }`}
+                  >
+                    Level {idx + 1}: {level.count} Surahs
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -1349,20 +1398,41 @@ const renderGame2 = () => (
                     </select>
                   </div>
                   <button
-                    onClick={runBatchGame4}
+                    onClick={() => runBatchGame4()}
                     className="flex items-center justify-center space-x-2 px-6 py-2 bg-slate-800 hover:bg-slate-900 text-white font-medium rounded-lg transition-colors flex-1 md:flex-none shadow-md"
+                    disabled={isG4AutoRunning}
                   >
                     <RotateCcw className="w-4 h-4" />
                     <span>Run {g4BatchSize.toLocaleString()}</span>
                   </button>
+                  <button
+                    onClick={() => setIsG4AutoRunning(!isG4AutoRunning)}
+                    className={`flex items-center justify-center space-x-2 px-6 py-2 text-white font-medium rounded-lg transition-colors flex-1 md:flex-none shadow-md ${
+                      isG4AutoRunning ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'
+                    }`}
+                  >
+                    <Play className="w-4 h-4" />
+                    <span>{isG4AutoRunning ? 'Stop Infinite' : 'Start Infinite (100k)'}</span>
+                  </button>
                 </div>
+                {(g4Attempts > 0) && (
+                  <div className="flex justify-center mt-4">
+                    <button
+                      onClick={resetGame4}
+                      className="text-slate-500 hover:text-slate-700 font-medium text-sm flex items-center gap-1"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      Reset Stats
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-6">
+        <div className="grid grid-cols-4 gap-6">
           <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 text-center">
             <p className="text-sm text-slate-500 uppercase tracking-wider mb-2 font-medium">Total Attempts</p>
             <p className="text-3xl font-black text-slate-800">{g4Attempts.toLocaleString()}</p>
@@ -1377,6 +1447,10 @@ const renderGame2 = () => (
           <div className="bg-rose-50 rounded-xl p-6 shadow-sm border border-rose-100 text-center">
             <p className="text-sm text-rose-600 uppercase tracking-wider mb-2 font-bold">Failed Attempts</p>
             <p className="text-3xl font-black text-rose-600">{g4Losses.toLocaleString()}</p>
+          </div>
+          <div className="bg-blue-50 rounded-xl p-6 shadow-sm border border-blue-100 text-center">
+            <p className="text-sm text-blue-600 uppercase tracking-wider mb-2 font-bold">Success Rate</p>
+            <p className="text-3xl font-black text-blue-600">{winRate}%</p>
           </div>
         </div>
 
@@ -1416,6 +1490,87 @@ const renderGame2 = () => (
                 </p>
               </div>
             </div>
+
+            {/* Sub Tables */}
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Primes Table */}
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col max-h-96">
+                <div className="bg-indigo-50 p-3 border-b border-indigo-100 font-bold text-indigo-800 text-center sticky top-0">
+                  Primes (m)
+                </div>
+                <div className="overflow-y-auto flex-1">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 sticky top-0">
+                      <tr>
+                        <th className="py-2 px-3 text-left text-slate-500 font-medium">Surah</th>
+                        <th className="py-2 px-3 text-right text-slate-500 font-medium">Ayahs</th>
+                        <th className="py-2 px-3 text-right text-slate-500 font-medium">nth</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {g4Data.filter(d => d.isPrimeAyahs).map(d => (
+                        <tr key={`p-${d.id}`} className="hover:bg-slate-50 transition-colors">
+                          <td className="py-2 px-3 font-medium text-slate-700">{d.id}</td>
+                          <td className="py-2 px-3 text-right text-indigo-600 font-bold">{d.ayahs}</td>
+                          <td className="py-2 px-3 text-right text-indigo-400">{d.nthPrime}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Non-Primes Table */}
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col max-h-96">
+                <div className="bg-slate-50 p-3 border-b border-slate-200 font-bold text-slate-700 text-center sticky top-0">
+                  Non-Primes
+                </div>
+                <div className="overflow-y-auto flex-1">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 sticky top-0">
+                      <tr>
+                        <th className="py-2 px-3 text-left text-slate-500 font-medium">Surah</th>
+                        <th className="py-2 px-3 text-right text-slate-500 font-medium">Ayahs</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {g4Data.filter(d => !d.isPrimeAyahs).map(d => (
+                        <tr key={`np-${d.id}`} className="hover:bg-slate-50 transition-colors">
+                          <td className="py-2 px-3 font-medium text-slate-700">{d.id}</td>
+                          <td className="py-2 px-3 text-right text-slate-600">{d.ayahs}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Original Table */}
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col max-h-96">
+                <div className="bg-slate-800 p-3 border-b border-slate-700 font-bold text-white text-center sticky top-0">
+                  Original (All)
+                </div>
+                <div className="overflow-y-auto flex-1">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 sticky top-0">
+                      <tr>
+                        <th className="py-2 px-3 text-left text-slate-500 font-medium">Surah</th>
+                        <th className="py-2 px-3 text-right text-slate-500 font-medium">Ayahs</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {g4Data.map(d => (
+                        <tr key={`o-${d.id}`} className="hover:bg-slate-50 transition-colors">
+                          <td className="py-2 px-3 font-medium text-slate-700">{d.id}</td>
+                          <td className="py-2 px-3 text-right font-bold text-slate-800">{d.ayahs}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
           </div>
         )}
       </div>
