@@ -62,6 +62,7 @@ type GameId = typeof GAMES[number]['id'] | 'game4';
 
 
 
+
 function isPrime(num: number): boolean {
   if (num <= 1) return false;
   if (num <= 3) return true;
