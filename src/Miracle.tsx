@@ -121,8 +121,14 @@ export default function QuranSymmetryGame() {
   // --- Game 1 State ---
   const [currentLevelIdx, setCurrentLevelIdx] = useState(0);
   const [attempts, setAttempts] = useState(0);
-  const [surahData, setSurahData] = useState<Array<{ id: number, ayahs: number, sum: number, isEven: boolean }>>([]);
-  const [gameStatus, setGameStatus] = useState<'idle' | 'success' | 'fail' | 'perfect'>('idle');
+
+  const [table1Data, setTable1Data] = useState<Array<{ id: number, ayahs: number, sum: number, isEvenAyahs: boolean, isEvenSum: boolean }>>([]);
+  const [table2Data, setTable2Data] = useState<Array<{ id: number, words: number, sum: number, isEvenWords: boolean, isEvenSum: boolean }>>([]);
+
+  const [table1Win, setTable1Win] = useState(false);
+  const [table2Win, setTable2Win] = useState(false);
+
+  const [stats, setStats] = useState({ table1Rate: 0, table2Rate: 0, combinedRate: 0 });
 
   // --- Game 2 State ---
   const [g2LevelIdx, setG2LevelIdx] = useState(0);
@@ -155,7 +161,7 @@ export default function QuranSymmetryGame() {
   const [g4Status, setG4Status] = useState<'idle' | 'success' | 'fail'>('idle');
   const [g4BatchSize, setG4BatchSize] = useState(1000);
 
-  const currentLevel = LEVELS[currentLevelIdx];
+
 
   // Reset game 1 when level changes
   useEffect(() => {
@@ -219,56 +225,89 @@ export default function QuranSymmetryGame() {
   // --- Game 1 Logic ---
   const resetLevel = () => {
     setAttempts(0);
-    setGameStatus('idle');
-    setSurahData([]);
+    setTable1Win(false); setTable2Win(false);
+    setTable1Data([]); setTable2Data([]);
   };
+
+  const calculateProbabilities = (n: number) => {
+    // Run a quick simulation to estimate probabilities
+    const iterations = 10000;
+    let t1Wins = 0;
+    let t2Wins = 0;
+    let bothWins = 0;
+    const target = n / 2;
+
+    for (let i = 0; i < iterations; i++) {
+      let t1AyahsEven = 0, t1SumEven = 0;
+      let t2WordsEven = 0, t2SumEven = 0;
+
+      for (let j = 1; j <= n; j++) {
+        const a = Math.floor(Math.random() * 284) + 3;
+        const w = Math.floor(Math.random() * (n * 100)) + 1;
+
+        if (a % 2 === 0) t1AyahsEven++;
+        if ((j + a) % 2 === 0) t1SumEven++;
+
+        if (w % 2 === 0) t2WordsEven++;
+        if ((j + w) % 2 === 0) t2SumEven++;
+      }
+
+      const t1Win = t1AyahsEven === target || t1SumEven === target;
+      const t2Win = t2WordsEven === target || t2SumEven === target;
+
+      if (t1Win) t1Wins++;
+      if (t2Win) t2Wins++;
+      if (t1Win && t2Win) bothWins++;
+    }
+
+    return {
+      table1Rate: (t1Wins / iterations) * 100,
+      table2Rate: (t2Wins / iterations) * 100,
+      combinedRate: (bothWins / iterations) * 100
+    };
+  };
+
+  useEffect(() => {
+    // Calculate initial stats when level changes
+    setStats(calculateProbabilities(LEVELS[currentLevelIdx].count));
+  }, [currentLevelIdx]);
 
   const generateRandom = () => {
     setAttempts(prev => prev + 1);
-    const newData = Array.from({ length: currentLevel.count }, (_, i) => {
-      const surahNum = i + 1;
-      const randomAyahs = Math.floor(Math.random() * 284) + 3;
-      const sum = surahNum + randomAyahs;
-      return { id: surahNum, ayahs: randomAyahs, sum, isEven: sum % 2 === 0 };
+    const n = LEVELS[currentLevelIdx].count;
+
+    const newTable1 = Array.from({ length: n }, (_, i) => {
+      const id = i + 1;
+      const ayahs = Math.floor(Math.random() * 284) + 3;
+      const sum = id + ayahs;
+      return { id, ayahs, sum, isEvenAyahs: ayahs % 2 === 0, isEvenSum: sum % 2 === 0 };
     });
-    setSurahData(newData);
 
-    const evenCount = newData.filter(d => d.isEven).length;
-    const oddCount = newData.length - evenCount;
-    const target = currentLevel.count / 2;
-    const isSplitCorrect = evenCount === target && oddCount === target;
+    const newTable2 = Array.from({ length: n }, (_, i) => {
+      const id = i + 1;
+      const words = Math.floor(Math.random() * (n * 100)) + 1;
+      const sum = id + words;
+      return { id, words, sum, isEvenWords: words % 2 === 0, isEvenSum: sum % 2 === 0 };
+    });
 
-    if (isSplitCorrect) {
-      const evenGroupSum = newData.filter(d => d.isEven).reduce((acc, curr) => acc + curr.sum, 0);
-      const oddGroupSum = newData.filter(d => !d.isEven).reduce((acc, curr) => acc + curr.sum, 0);
-      const targetSurahsOrder = currentLevel.count * (currentLevel.count + 1) / 2;
-      const targetTotalAyahs = newData.reduce((acc, curr) => acc + curr.ayahs, 0);
+    setTable1Data(newTable1);
+    setTable2Data(newTable2);
 
-      const isPerfect = (oddGroupSum === targetSurahsOrder && evenGroupSum === targetTotalAyahs) ||
-                        (oddGroupSum === targetTotalAyahs && evenGroupSum === targetSurahsOrder);
-      setGameStatus(isPerfect ? 'perfect' : 'success');
-    } else {
-      setGameStatus('fail');
-    }
+    const target = n / 2;
+
+    const t1AyahsEvenCount = newTable1.filter(d => d.isEvenAyahs).length;
+    const t1SumEvenCount = newTable1.filter(d => d.isEvenSum).length;
+    const isT1Win = t1AyahsEvenCount === target || t1SumEvenCount === target;
+
+    const t2WordsEvenCount = newTable2.filter(d => d.isEvenWords).length;
+    const t2SumEvenCount = newTable2.filter(d => d.isEvenSum).length;
+    const isT2Win = t2WordsEvenCount === target || t2SumEvenCount === target;
+
+    setTable1Win(isT1Win);
+    setTable2Win(isT2Win);
   };
 
-  const evenCount = surahData.filter(d => d.isEven).length;
-  const oddCount = surahData.length - evenCount;
-  const targetHalf = currentLevel.count / 2;
 
-  const calculateProbability = (n: number) => {
-    if (n > 50) return "Low (<8%)";
-    if (n > 20) return "Medium (~12%)";
-    return "High (~25%)";
-  };
-
-  const sums = useMemo(() => {
-    if (surahData.length === 0) return { even: 0, odd: 0 };
-    return {
-      even: surahData.filter(d => d.isEven).reduce((acc, curr) => acc + curr.sum, 0),
-      odd: surahData.filter(d => !d.isEven).reduce((acc, curr) => acc + curr.sum, 0)
-    };
-  }, [surahData]);
 
   // --- Game 2 Logic ---
   const generateGame2 = () => {
@@ -633,53 +672,25 @@ export default function QuranSymmetryGame() {
       {/* Game Board */}
       <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
         <div className="p-8 text-center bg-slate-900 text-white">
-          <h2 className="text-2xl font-bold mb-2">{currentLevel.name}</h2>
-          <p className="text-slate-300 max-w-2xl mx-auto">{currentLevel.description}</p>
+          <h2 className="text-2xl font-bold mb-2">{LEVELS[currentLevelIdx].name}</h2>
+          <p className="text-slate-300 max-w-2xl mx-auto">{LEVELS[currentLevelIdx].description}</p>
 
-          <div className="mt-8 flex justify-center items-center gap-8">
-            <div className="text-center">
-              <div className="text-xs uppercase tracking-widest text-slate-400 mb-1">Target Even</div>
-              <div className={`text-4xl font-mono font-bold ${evenCount === targetHalf ? 'text-green-400' : 'text-white'}`}>
-                {evenCount} <span className="text-lg text-slate-500">/ {targetHalf}</span>
+          <div className="mt-6 flex flex-col md:flex-row items-center justify-center gap-6">
+            <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 text-center">
+              <div className="text-xs uppercase tracking-widest text-slate-400 mb-1">Target Split</div>
+              <div className="text-2xl font-mono font-bold text-white">
+                {LEVELS[currentLevelIdx].count / 2} / {LEVELS[currentLevelIdx].count / 2}
               </div>
             </div>
-
-            <div className="h-12 w-px bg-slate-700"></div>
-
-            <div className="text-center">
-              <div className="text-xs uppercase tracking-widest text-slate-400 mb-1">Target Odd</div>
-              <div className={`text-4xl font-mono font-bold ${oddCount === targetHalf ? 'text-green-400' : 'text-white'}`}>
-                {oddCount} <span className="text-lg text-slate-500">/ {targetHalf}</span>
+            <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 text-center text-sm">
+              <div className="text-xs uppercase text-slate-400 mb-1">Estimated Probabilities</div>
+              <div className="flex gap-4 font-mono text-emerald-400">
+                <span>T1: {stats.table1Rate.toFixed(1)}%</span>
+                <span>T2: {stats.table2Rate.toFixed(1)}%</span>
+                <span className="text-yellow-400">Both: {stats.combinedRate.toFixed(1)}%</span>
               </div>
             </div>
           </div>
-
-          {/* Divine Design Verification Display */}
-          {surahData.length > 0 && (
-            <div className="mt-8 bg-slate-800 p-4 rounded-lg inline-block border border-slate-700">
-              <h3 className="text-emerald-400 text-sm font-bold uppercase tracking-wider mb-3">Divine Design Verification</h3>
-              <div className="grid grid-cols-2 gap-8 text-left">
-                <div>
-                  <div className="text-xs text-slate-400">Sum of Odd Group</div>
-                  <div className="font-mono text-xl flex items-center gap-2">
-                    {sums.odd}
-                    {(sums.odd === (currentLevel.count * (currentLevel.count + 1) / 2) || sums.odd === surahData.reduce((a, b) => a + b.ayahs, 0))
-                      ? <CheckCircle2 className="text-green-500 w-5 h-5" />
-                      : <span className="text-red-500 text-xs">(Targets: {currentLevel.count * (currentLevel.count + 1) / 2} or {surahData.reduce((a, b) => a + b.ayahs, 0)})</span>}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs text-slate-400">Sum of Even Group</div>
-                  <div className="font-mono text-xl flex items-center gap-2">
-                    {sums.even}
-                    {(sums.even === (currentLevel.count * (currentLevel.count + 1) / 2) || sums.even === surahData.reduce((a, b) => a + b.ayahs, 0))
-                      ? <CheckCircle2 className="text-green-500 w-5 h-5" />
-                      : <span className="text-red-500 text-xs">(Targets: {currentLevel.count * (currentLevel.count + 1) / 2} or {surahData.reduce((a, b) => a + b.ayahs, 0)})</span>}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
           <div className="mt-8">
             <button
@@ -687,81 +698,112 @@ export default function QuranSymmetryGame() {
               className="group relative inline-flex items-center justify-center px-8 py-4 font-bold text-white transition-all duration-200 bg-emerald-600 font-lg rounded-full hover:bg-emerald-500 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-600"
             >
               <Play className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
-              Generate Random Book
+              Generate Random Tables
             </button>
-            <p className="mt-4 text-xs text-slate-500">Attempt #{attempts} • Probability of Parity: {calculateProbability(currentLevel.count)}</p>
+            <p className="mt-4 text-xs text-slate-500">Attempt #{attempts}</p>
           </div>
         </div>
 
         {/* Status Message */}
-        {gameStatus !== 'idle' && (
-          <div className={`p-4 text-center border-b ${gameStatus === 'fail' ? 'bg-amber-50 text-amber-800 border-amber-100' :
-            gameStatus === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-100' :
-              'bg-purple-100 text-purple-900 border-purple-200'
-            }`}>
+        {(attempts > 0) && (
+          <div className={`p-4 text-center border-b ${table1Win && table2Win ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : (table1Win || table2Win) ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-rose-50 text-rose-800 border-rose-200'}`}>
             <div className="flex items-center justify-center gap-2 font-bold">
-              {gameStatus === 'fail' && <XCircle className="w-6 h-6" />}
-              {gameStatus === 'success' && <CheckCircle2 className="w-6 h-6" />}
-              {gameStatus === 'perfect' && <CheckCircle2 className="w-6 h-6" />}
-
+              {table1Win && table2Win ? <CheckCircle2 className="w-6 h-6" /> : (table1Win || table2Win) ? <Info className="w-6 h-6" /> : <XCircle className="w-6 h-6" />}
               <span>
-                {gameStatus === 'fail' && "Imbalance Detected. Try again."}
-                {gameStatus === 'success' && "Symmetry Achieved! You beat the odds, but the sums do not match the Divine Design exactly."}
-                {gameStatus === 'perfect' && "SUBHANALLAH! Impossible Match Found!"}
+                {table1Win && table2Win ? "SUBHANALLAH! Both Tables achieved perfect symmetry simultaneously!" : (table1Win || table2Win) ? "Partial Match! One of the tables achieved perfect symmetry." : "Imbalance Detected. Neither table reached perfect symmetry."}
               </span>
             </div>
-            {gameStatus === 'success' && (
-              <p className="text-sm mt-1 opacity-80">Getting the exact sums by luck is statistically virtually impossible.</p>
-            )}
           </div>
         )}
 
         {/* Visualization Grid */}
-        <div className="p-6 bg-slate-50 min-h-[300px] max-h-[500px] overflow-y-auto">
-          {surahData.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-slate-400 mt-20">
+        <div className="p-6 bg-slate-50">
+          {table1Data.length === 0 ? (
+            <div className="flex flex-col items-center justify-center text-slate-400 py-12">
               <RotateCcw className="w-12 h-12 mb-4 opacity-20" />
-              <p>Press Generate to create a random set of Surahs</p>
+              <p>Press Generate to create random sets of Ayahs and Words</p>
             </div>
           ) : (
-            <div className="grid md:grid-cols-2 gap-6">
-              {/* Even Results */}
+            <div className="grid md:grid-cols-2 gap-8">
+              {/* Table 1 */}
               <div>
-                <h4 className="text-sm font-bold text-slate-600 mb-3 flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                  Even Results
-                  <span className="ml-auto text-xs font-normal text-slate-400">{surahData.filter(d => d.isEven).length} surahs</span>
-                </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {surahData.filter(d => d.isEven).map((data) => (
-                    <div key={data.id} className="p-2 rounded border text-xs flex flex-col items-center transition-all bg-blue-50 border-blue-200">
-                      <div className="font-bold opacity-50">Surah {data.id}</div>
-                      <div className="text-[10px] text-slate-500">{data.ayahs} Ayahs</div>
-                      <div className="font-mono font-bold mt-1 text-blue-600">
-                        Sum: {data.sum}
-                      </div>
-                    </div>
-                  ))}
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-lg text-slate-700">Table 1: Ayahs</h3>
+                  <div className={`px-3 py-1 text-xs font-bold rounded-full ${table1Win ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                    {table1Win ? 'SUCCESS' : 'FAIL'}
+                  </div>
+                </div>
+                <div className="flex gap-4 mb-4 text-sm text-slate-600 bg-white p-3 rounded-lg border border-slate-200">
+                  <div className="flex-1">
+                    <span className="block text-xs uppercase text-slate-400">Ayahs Split</span>
+                    <span className="font-bold">{table1Data.filter(d => d.isEvenAyahs).length}E / {table1Data.filter(d => !d.isEvenAyahs).length}O</span>
+                  </div>
+                  <div className="w-px bg-slate-200"></div>
+                  <div className="flex-1">
+                    <span className="block text-xs uppercase text-slate-400">Sum Split</span>
+                    <span className="font-bold">{table1Data.filter(d => d.isEvenSum).length}E / {table1Data.filter(d => !d.isEvenSum).length}O</span>
+                  </div>
+                </div>
+                <div className="max-h-96 overflow-y-auto rounded-xl border border-slate-200 shadow-inner">
+                  <table className="w-full text-xs text-left bg-white">
+                    <thead className="bg-slate-100 sticky top-0">
+                      <tr>
+                        <th className="p-2 font-semibold">Surah</th>
+                        <th className="p-2 font-semibold text-right">Ayahs</th>
+                        <th className="p-2 font-semibold text-right">Sum</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {table1Data.map(d => (
+                        <tr key={d.id} className="hover:bg-slate-50">
+                          <td className="p-2 font-medium">#{d.id}</td>
+                          <td className={`p-2 text-right ${d.isEvenAyahs ? 'text-blue-600' : 'text-orange-600'}`}>{d.ayahs}</td>
+                          <td className={`p-2 text-right font-bold ${d.isEvenSum ? 'text-blue-600' : 'text-orange-600'}`}>{d.sum}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
-              {/* Odd Results */}
+              {/* Table 2 */}
               <div>
-                <h4 className="text-sm font-bold text-slate-600 mb-3 flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-                  Odd Results
-                  <span className="ml-auto text-xs font-normal text-slate-400">{surahData.filter(d => !d.isEven).length} surahs</span>
-                </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {surahData.filter(d => !d.isEven).map((data) => (
-                    <div key={data.id} className="p-2 rounded border text-xs flex flex-col items-center transition-all bg-orange-50 border-orange-200">
-                      <div className="font-bold opacity-50">Surah {data.id}</div>
-                      <div className="text-[10px] text-slate-500">{data.ayahs} Ayahs</div>
-                      <div className="font-mono font-bold mt-1 text-orange-600">
-                        Sum: {data.sum}
-                      </div>
-                    </div>
-                  ))}
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-lg text-slate-700">Table 2: Words</h3>
+                  <div className={`px-3 py-1 text-xs font-bold rounded-full ${table2Win ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                    {table2Win ? 'SUCCESS' : 'FAIL'}
+                  </div>
+                </div>
+                <div className="flex gap-4 mb-4 text-sm text-slate-600 bg-white p-3 rounded-lg border border-slate-200">
+                  <div className="flex-1">
+                    <span className="block text-xs uppercase text-slate-400">Words Split</span>
+                    <span className="font-bold">{table2Data.filter(d => d.isEvenWords).length}E / {table2Data.filter(d => !d.isEvenWords).length}O</span>
+                  </div>
+                  <div className="w-px bg-slate-200"></div>
+                  <div className="flex-1">
+                    <span className="block text-xs uppercase text-slate-400">Sum Split</span>
+                    <span className="font-bold">{table2Data.filter(d => d.isEvenSum).length}E / {table2Data.filter(d => !d.isEvenSum).length}O</span>
+                  </div>
+                </div>
+                <div className="max-h-96 overflow-y-auto rounded-xl border border-slate-200 shadow-inner">
+                  <table className="w-full text-xs text-left bg-white">
+                    <thead className="bg-slate-100 sticky top-0">
+                      <tr>
+                        <th className="p-2 font-semibold">Surah</th>
+                        <th className="p-2 font-semibold text-right">Words</th>
+                        <th className="p-2 font-semibold text-right">Sum</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {table2Data.map(d => (
+                        <tr key={d.id} className="hover:bg-slate-50">
+                          <td className="p-2 font-medium">#{d.id}</td>
+                          <td className={`p-2 text-right ${d.isEvenWords ? 'text-purple-600' : 'text-pink-600'}`}>{d.words}</td>
+                          <td className={`p-2 text-right font-bold ${d.isEvenSum ? 'text-purple-600' : 'text-pink-600'}`}>{d.sum}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
