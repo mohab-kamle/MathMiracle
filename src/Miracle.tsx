@@ -5,7 +5,6 @@ import { Play, RotateCcw, Lock, CheckCircle2, XCircle, Info, BookOpen, Globe, An
 
 // The "Target" sums found in the actual Quran for the 57/57 even/odd groups
 const GOLDEN_RATIO = 1.6180339887;
-const GOLDEN_RATIO_TOLERANCE = 0.382; // Allows values roughly 1.236 to 2.0
 
 const LEVELS = [
   { id: 1, count: 4, name: "The Starter", description: "Try to balance 4 Surahs (2 Even / 2 Odd)." },
@@ -63,6 +62,7 @@ type GameId = typeof GAMES[number]['id'] | 'game4';
 
 
 
+
 function isPrime(num: number): boolean {
   if (num <= 1) return false;
   if (num <= 3) return true;
@@ -89,7 +89,7 @@ function getNthPrime(n: number): number {
   return PRIMES[n - 1] || 0;
 }
 
-function getGoldenRatioStats(a: number, b: number, tolerance: number) {
+function getGoldenRatioStats(a: number, b: number) {
   if (a === 0 || b === 0) {
     return { ratio: 0, difference: 0, isClose: false, valid: false };
   }
@@ -106,7 +106,7 @@ function getGoldenRatioStats(a: number, b: number, tolerance: number) {
   return {
     ratio: closestRatio,
     difference: closestDiff,
-    isClose: closestDiff <= tolerance,
+    isClose: closestRatio >= 1.5 && closestRatio <= 2.0,
     valid: true,
   };
 }
@@ -373,7 +373,7 @@ export default function QuranSymmetryGame() {
 
     setG3Data(newData);
 
-    const stats = getGoldenRatioStats(sumRepeated, sumNonRepeated, GOLDEN_RATIO_TOLERANCE);
+    const stats = getGoldenRatioStats(sumRepeated, sumNonRepeated);
     const targetSurahsOrder = count * (count + 1) / 2;
     const targetTotalAyahs = newData.reduce((acc, curr) => acc + curr.ayahs, 0);
 
@@ -415,7 +415,7 @@ export default function QuranSymmetryGame() {
           sumNonRepeated += code;
         }
       }
-      const stats = getGoldenRatioStats(sumRepeated, sumNonRepeated, GOLDEN_RATIO_TOLERANCE);
+      const stats = getGoldenRatioStats(sumRepeated, sumNonRepeated);
       const success = stats.isClose;
 
       batchResults.push({
@@ -801,8 +801,8 @@ export default function QuranSymmetryGame() {
   const renderGame3 = () => {
     const ratio = g3Sums.nonRepeated !== 0 ? (g3Sums.repeated / g3Sums.nonRepeated).toFixed(3) : '0';
 
-    const repStats = getGoldenRatioStats(g3Sums.repeated, g3Sums.nonRepeated, GOLDEN_RATIO_TOLERANCE);
-    const evenOddStats = getGoldenRatioStats(g3Sums.even, g3Sums.odd, GOLDEN_RATIO_TOLERANCE);
+    const repStats = getGoldenRatioStats(g3Sums.repeated, g3Sums.nonRepeated);
+    const evenOddStats = getGoldenRatioStats(g3Sums.even, g3Sums.odd);
 
     return (
       <div className="space-y-8">
