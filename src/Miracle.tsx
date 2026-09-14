@@ -20,7 +20,7 @@ const GAMES = [
     id: 'game1' as const,
     title: 'Even/Odd Symmetry',
     subtitle: 'Game 1',
-    description: 'Generate random ayah counts and check if the sums of (Surah # + Ayahs) split perfectly into 57 even and 57 odd — just like the real Quran.',
+    description: 'Generate random ayah, word, and letter counts and check if the sums of (Surah # + Value) split perfectly into even and odd — just like the real Quran.',
     icon: Scale,
     gradient: 'from-emerald-500 to-teal-600',
     border: 'border-emerald-200 hover:border-emerald-400',
@@ -124,11 +124,13 @@ export default function QuranSymmetryGame() {
 
   const [table1Data, setTable1Data] = useState<Array<{ id: number, ayahs: number, sum: number, isEvenAyahs: boolean, isEvenSum: boolean }>>([]);
   const [table2Data, setTable2Data] = useState<Array<{ id: number, words: number, sum: number, isEvenWords: boolean, isEvenSum: boolean }>>([]);
+  const [table3Data, setTable3Data] = useState<Array<{ id: number, letters: number, sum: number, isEvenLetters: boolean, isEvenSum: boolean }>>([]);
 
   const [table1Win, setTable1Win] = useState(false);
   const [table2Win, setTable2Win] = useState(false);
+  const [table3Win, setTable3Win] = useState(false);
 
-  const [stats, setStats] = useState({ table1Rate: 0, table2Rate: 0, combinedRate: 0 });
+  const [stats, setStats] = useState({ table1Rate: 0, table2Rate: 0, table3Rate: 0, combinedRate: 0 });
 
   // --- Game 2 State ---
   const [g2LevelIdx, setG2LevelIdx] = useState(0);
@@ -225,8 +227,8 @@ export default function QuranSymmetryGame() {
   // --- Game 1 Logic ---
   const resetLevel = () => {
     setAttempts(0);
-    setTable1Win(false); setTable2Win(false);
-    setTable1Data([]); setTable2Data([]);
+    setTable1Win(false); setTable2Win(false); setTable3Win(false);
+    setTable1Data([]); setTable2Data([]); setTable3Data([]);
   };
 
   const calculateProbabilities = (n: number) => {
@@ -234,36 +236,45 @@ export default function QuranSymmetryGame() {
     const iterations = 10000;
     let t1Wins = 0;
     let t2Wins = 0;
-    let bothWins = 0;
+    let t3Wins = 0;
+    let allWins = 0;
     const target = n / 2;
 
     for (let i = 0; i < iterations; i++) {
       let t1AyahsEven = 0, t1SumEven = 0;
       let t2WordsEven = 0, t2SumEven = 0;
+      let t3LettersEven = 0, t3SumEven = 0;
 
       for (let j = 1; j <= n; j++) {
         const a = Math.floor(Math.random() * 284) + 3;
         const w = Math.floor(Math.random() * (n * 100)) + 1;
+        const l = Math.floor(Math.random() * (n * 500)) + 1;
 
         if (a % 2 === 0) t1AyahsEven++;
         if ((j + a) % 2 === 0) t1SumEven++;
 
         if (w % 2 === 0) t2WordsEven++;
         if ((j + w) % 2 === 0) t2SumEven++;
+
+        if (l % 2 === 0) t3LettersEven++;
+        if ((j + l) % 2 === 0) t3SumEven++;
       }
 
       const t1Win = t1AyahsEven === target || t1SumEven === target;
       const t2Win = t2WordsEven === target || t2SumEven === target;
+      const t3Win = t3LettersEven === target || t3SumEven === target;
 
       if (t1Win) t1Wins++;
       if (t2Win) t2Wins++;
-      if (t1Win && t2Win) bothWins++;
+      if (t3Win) t3Wins++;
+      if (t1Win && t2Win && t3Win) allWins++;
     }
 
     return {
       table1Rate: (t1Wins / iterations) * 100,
       table2Rate: (t2Wins / iterations) * 100,
-      combinedRate: (bothWins / iterations) * 100
+      table3Rate: (t3Wins / iterations) * 100,
+      combinedRate: (allWins / iterations) * 100
     };
   };
 
@@ -290,8 +301,16 @@ export default function QuranSymmetryGame() {
       return { id, words, sum, isEvenWords: words % 2 === 0, isEvenSum: sum % 2 === 0 };
     });
 
+    const newTable3 = Array.from({ length: n }, (_, i) => {
+      const id = i + 1;
+      const letters = Math.floor(Math.random() * (n * 500)) + 1;
+      const sum = id + letters;
+      return { id, letters, sum, isEvenLetters: letters % 2 === 0, isEvenSum: sum % 2 === 0 };
+    });
+
     setTable1Data(newTable1);
     setTable2Data(newTable2);
+    setTable3Data(newTable3);
 
     const target = n / 2;
 
@@ -303,8 +322,13 @@ export default function QuranSymmetryGame() {
     const t2SumEvenCount = newTable2.filter(d => d.isEvenSum).length;
     const isT2Win = t2WordsEvenCount === target || t2SumEvenCount === target;
 
+    const t3LettersEvenCount = newTable3.filter(d => d.isEvenLetters).length;
+    const t3SumEvenCount = newTable3.filter(d => d.isEvenSum).length;
+    const isT3Win = t3LettersEvenCount === target || t3SumEvenCount === target;
+
     setTable1Win(isT1Win);
     setTable2Win(isT2Win);
+    setTable3Win(isT3Win);
   };
 
 
@@ -645,199 +669,305 @@ export default function QuranSymmetryGame() {
     </button>
   );
 
-  const renderGame1 = () => (
-    <div className="space-y-8">
-      {renderBackButton()}
+  const renderGame1 = () => {
+    const table2SubCheck = table2Data.length > 0 && table1Data.length > 0 ? (() => {
+      let maxWordSurah = table2Data[0];
+      let minWordSurah = table2Data[0];
 
-      {/* Level Selector */}
-      <div className="flex flex-wrap gap-4 justify-center">
-        {LEVELS.map((lvl, idx) => (
-          <button
-            key={lvl.id}
-            onClick={() => setCurrentLevelIdx(idx)}
-            disabled={idx > currentLevelIdx && idx > 0 && false}
-            className={`relative flex flex-col items-center p-4 rounded-xl border-2 w-40 transition-all
-              ${currentLevelIdx === idx
-                ? 'border-emerald-600 bg-emerald-50 scale-105 shadow-md'
-                : 'border-slate-200 bg-white hover:border-emerald-300 text-slate-400 hover:text-slate-600'}`}
-          >
-            <span className="text-sm uppercase font-bold tracking-wider mb-1">Level {lvl.id}</span>
-            <span className="text-2xl font-black">{lvl.count}</span>
-            <span className="text-xs">Surahs</span>
-            {idx > currentLevelIdx + 1 && <Lock className="absolute top-2 right-2 w-4 h-4 opacity-50" />}
-          </button>
-        ))}
-      </div>
+      for (const item of table2Data) {
+        if (item.words > maxWordSurah.words) {
+          maxWordSurah = item;
+        }
+        if (item.words < minWordSurah.words) {
+          minWordSurah = item;
+        }
+      }
 
-      {/* Game Board */}
-      <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
-        <div className="p-8 text-center bg-slate-900 text-white">
-          <h2 className="text-2xl font-bold mb-2">{LEVELS[currentLevelIdx].name}</h2>
-          <p className="text-slate-300 max-w-2xl mx-auto">{LEVELS[currentLevelIdx].description}</p>
+      const maxSum = maxWordSurah.id + maxWordSurah.words;
+      const minSum = minWordSurah.id + minWordSurah.words;
+      const combinedWordSum = maxSum + minSum;
+      const totalAyahs = table1Data.reduce((acc, curr) => acc + curr.ayahs, 0);
+      const isMatch = combinedWordSum === totalAyahs;
 
-          <div className="mt-6 flex flex-col md:flex-row items-center justify-center gap-6">
-            <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 text-center">
-              <div className="text-xs uppercase tracking-widest text-slate-400 mb-1">Target Split</div>
-              <div className="text-2xl font-mono font-bold text-white">
-                {LEVELS[currentLevelIdx].count / 2} / {LEVELS[currentLevelIdx].count / 2}
-              </div>
-            </div>
-            <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 text-center text-sm">
-              <div className="text-xs uppercase text-slate-400 mb-1">Estimated Probabilities</div>
-              <div className="flex gap-4 font-mono text-emerald-400">
-                <span>T1: {stats.table1Rate.toFixed(1)}%</span>
-                <span>T2: {stats.table2Rate.toFixed(1)}%</span>
-                <span className="text-yellow-400">Both: {stats.combinedRate.toFixed(1)}%</span>
-              </div>
-            </div>
-          </div>
+      return {
+        maxWordSurah,
+        minWordSurah,
+        maxSum,
+        minSum,
+        combinedWordSum,
+        totalAyahs,
+        isMatch,
+      };
+    })() : null;
 
-          <div className="mt-8">
+    return (
+      <div className="space-y-8">
+        {renderBackButton()}
+
+        {/* Level Selector */}
+        <div className="flex flex-wrap gap-4 justify-center">
+          {LEVELS.map((lvl, idx) => (
             <button
-              onClick={generateRandom}
-              className="group relative inline-flex items-center justify-center px-8 py-4 font-bold text-white transition-all duration-200 bg-emerald-600 font-lg rounded-full hover:bg-emerald-500 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-600"
+              key={lvl.id}
+              onClick={() => setCurrentLevelIdx(idx)}
+              disabled={idx > currentLevelIdx && idx > 0 && false}
+              className={`relative flex flex-col items-center p-4 rounded-xl border-2 w-40 transition-all
+                ${currentLevelIdx === idx
+                  ? 'border-emerald-600 bg-emerald-50 scale-105 shadow-md'
+                  : 'border-slate-200 bg-white hover:border-emerald-300 text-slate-400 hover:text-slate-600'}`}
             >
-              <Play className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
-              Generate Random Tables
+              <span className="text-sm uppercase font-bold tracking-wider mb-1">Level {lvl.id}</span>
+              <span className="text-2xl font-black">{lvl.count}</span>
+              <span className="text-xs">Surahs</span>
+              {idx > currentLevelIdx + 1 && <Lock className="absolute top-2 right-2 w-4 h-4 opacity-50" />}
             </button>
-            <p className="mt-4 text-xs text-slate-500">Attempt #{attempts}</p>
-          </div>
+          ))}
         </div>
 
-        {/* Status Message */}
-        {(attempts > 0) && (
-          <div className={`p-4 text-center border-b ${table1Win && table2Win ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : (table1Win || table2Win) ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-rose-50 text-rose-800 border-rose-200'}`}>
-            <div className="flex items-center justify-center gap-2 font-bold">
-              {table1Win && table2Win ? <CheckCircle2 className="w-6 h-6" /> : (table1Win || table2Win) ? <Info className="w-6 h-6" /> : <XCircle className="w-6 h-6" />}
-              <span>
-                {table1Win && table2Win ? "SUBHANALLAH! Both Tables achieved perfect symmetry simultaneously!" : (table1Win || table2Win) ? "Partial Match! One of the tables achieved perfect symmetry." : "Imbalance Detected. Neither table reached perfect symmetry."}
-              </span>
-            </div>
-          </div>
-        )}
+        {/* Game Board */}
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
+          <div className="p-8 text-center bg-slate-900 text-white">
+            <h2 className="text-2xl font-bold mb-2">{LEVELS[currentLevelIdx].name}</h2>
+            <p className="text-slate-300 max-w-2xl mx-auto">{LEVELS[currentLevelIdx].description}</p>
 
-        {/* Visualization Grid */}
-        <div className="p-6 bg-slate-50">
-          {table1Data.length === 0 ? (
-            <div className="flex flex-col items-center justify-center text-slate-400 py-12">
-              <RotateCcw className="w-12 h-12 mb-4 opacity-20" />
-              <p>Press Generate to create random sets of Ayahs and Words</p>
-            </div>
-          ) : (
-            <div className="grid md:grid-cols-2 gap-8">
-              {/* Table 1 */}
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-lg text-slate-700">Table 1: Ayahs</h3>
-                  <div className={`px-3 py-1 text-xs font-bold rounded-full ${table1Win ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                    {table1Win ? 'SUCCESS' : 'FAIL'}
-                  </div>
-                </div>
-                <div className="flex gap-4 mb-4 text-sm text-slate-600 bg-white p-3 rounded-lg border border-slate-200">
-                  <div className="flex-1">
-                    <span className="block text-xs uppercase text-slate-400">Ayahs Split</span>
-                    <span className="font-bold">{table1Data.filter(d => d.isEvenAyahs).length}E / {table1Data.filter(d => !d.isEvenAyahs).length}O</span>
-                  </div>
-                  <div className="w-px bg-slate-200"></div>
-                  <div className="flex-1">
-                    <span className="block text-xs uppercase text-slate-400">Sum Split</span>
-                    <span className="font-bold">{table1Data.filter(d => d.isEvenSum).length}E / {table1Data.filter(d => !d.isEvenSum).length}O</span>
-                  </div>
-                </div>
-                <div className="max-h-96 overflow-y-auto rounded-xl border border-slate-200 shadow-inner">
-                  <table className="w-full text-xs text-left bg-white">
-                    <thead className="bg-slate-100 sticky top-0">
-                      <tr>
-                        <th className="p-2 font-semibold">Surah</th>
-                        <th className="p-2 font-semibold text-right">Ayahs</th>
-                        <th className="p-2 font-semibold text-right">Sum</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {table1Data.map(d => (
-                        <tr key={d.id} className="hover:bg-slate-50">
-                          <td className="p-2 font-medium">#{d.id}</td>
-                          <td className={`p-2 text-right ${d.isEvenAyahs ? 'text-blue-600' : 'text-orange-600'}`}>{d.ayahs}</td>
-                          <td className={`p-2 text-right font-bold ${d.isEvenSum ? 'text-blue-600' : 'text-orange-600'}`}>{d.sum}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+            <div className="mt-6 flex flex-col md:flex-row items-center justify-center gap-6">
+              <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 text-center">
+                <div className="text-xs uppercase tracking-widest text-slate-400 mb-1">Target Split</div>
+                <div className="text-2xl font-mono font-bold text-white">
+                  {LEVELS[currentLevelIdx].count / 2} / {LEVELS[currentLevelIdx].count / 2}
                 </div>
               </div>
+              <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 text-center text-sm">
+                <div className="text-xs uppercase text-slate-400 mb-1">Estimated Probabilities</div>
+                <div className="flex gap-3 font-mono text-emerald-400 text-xs sm:text-sm">
+                  <span>T1: {stats.table1Rate.toFixed(1)}%</span>
+                  <span>T2: {stats.table2Rate.toFixed(1)}%</span>
+                  <span>T3: {stats.table3Rate.toFixed(1)}%</span>
+                  <span className="text-yellow-400">All: {stats.combinedRate.toFixed(1)}%</span>
+                </div>
+              </div>
+            </div>
 
-              {/* Table 2 */}
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-lg text-slate-700">Table 2: Words</h3>
-                  <div className={`px-3 py-1 text-xs font-bold rounded-full ${table2Win ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                    {table2Win ? 'SUCCESS' : 'FAIL'}
-                  </div>
-                </div>
-                <div className="flex gap-4 mb-4 text-sm text-slate-600 bg-white p-3 rounded-lg border border-slate-200">
-                  <div className="flex-1">
-                    <span className="block text-xs uppercase text-slate-400">Words Split</span>
-                    <span className="font-bold">{table2Data.filter(d => d.isEvenWords).length}E / {table2Data.filter(d => !d.isEvenWords).length}O</span>
-                  </div>
-                  <div className="w-px bg-slate-200"></div>
-                  <div className="flex-1">
-                    <span className="block text-xs uppercase text-slate-400">Sum Split</span>
-                    <span className="font-bold">{table2Data.filter(d => d.isEvenSum).length}E / {table2Data.filter(d => !d.isEvenSum).length}O</span>
-                  </div>
-                </div>
-                <div className="max-h-96 overflow-y-auto rounded-xl border border-slate-200 shadow-inner">
-                  <table className="w-full text-xs text-left bg-white">
-                    <thead className="bg-slate-100 sticky top-0">
-                      <tr>
-                        <th className="p-2 font-semibold">Surah</th>
-                        <th className="p-2 font-semibold text-right">Words</th>
-                        <th className="p-2 font-semibold text-right">Sum</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {table2Data.map(d => (
-                        <tr key={d.id} className="hover:bg-slate-50">
-                          <td className="p-2 font-medium">#{d.id}</td>
-                          <td className={`p-2 text-right ${d.isEvenWords ? 'text-purple-600' : 'text-pink-600'}`}>{d.words}</td>
-                          <td className={`p-2 text-right font-bold ${d.isEvenSum ? 'text-purple-600' : 'text-pink-600'}`}>{d.sum}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+            <div className="mt-8">
+              <button
+                onClick={generateRandom}
+                className="group relative inline-flex items-center justify-center px-8 py-4 font-bold text-white transition-all duration-200 bg-emerald-600 font-lg rounded-full hover:bg-emerald-500 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-600"
+              >
+                <Play className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
+                Generate Random Tables
+              </button>
+              <p className="mt-4 text-xs text-slate-500">Attempt #{attempts}</p>
+            </div>
+          </div>
+
+          {/* Status Message */}
+          {(attempts > 0) && (
+            <div className={`p-4 text-center border-b ${(table1Win && table2Win && table3Win) ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : (table1Win || table2Win || table3Win) ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-rose-50 text-rose-800 border-rose-200'}`}>
+              <div className="flex items-center justify-center gap-2 font-bold">
+                {(table1Win && table2Win && table3Win) ? <CheckCircle2 className="w-6 h-6" /> : (table1Win || table2Win || table3Win) ? <Info className="w-6 h-6" /> : <XCircle className="w-6 h-6" />}
+                <span>
+                  {(table1Win && table2Win && table3Win) ? "SUBHANALLAH! All 3 Tables achieved perfect symmetry simultaneously!" : (table1Win || table2Win || table3Win) ? "Partial Match! At least one table achieved perfect symmetry." : "Imbalance Detected. None of the tables reached perfect symmetry."}
+                </span>
               </div>
             </div>
           )}
+
+          {/* Visualization Grid */}
+          <div className="p-6 bg-slate-50">
+            {table1Data.length === 0 ? (
+              <div className="flex flex-col items-center justify-center text-slate-400 py-12">
+                <RotateCcw className="w-12 h-12 mb-4 opacity-20" />
+                <p>Press Generate to create random sets of Ayahs, Words, and Letters</p>
+              </div>
+            ) : (
+              <div className="grid lg:grid-cols-3 gap-6">
+                {/* Table 1 */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-bold text-lg text-slate-700">Table 1: Ayahs</h3>
+                    <div className={`px-3 py-1 text-xs font-bold rounded-full ${table1Win ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                      {table1Win ? 'SUCCESS' : 'FAIL'}
+                    </div>
+                  </div>
+                  <div className="flex gap-4 mb-4 text-sm text-slate-600 bg-white p-3 rounded-lg border border-slate-200">
+                    <div className="flex-1">
+                      <span className="block text-xs uppercase text-slate-400">Ayahs Split</span>
+                      <span className="font-bold">{table1Data.filter(d => d.isEvenAyahs).length}E / {table1Data.filter(d => !d.isEvenAyahs).length}O</span>
+                    </div>
+                    <div className="w-px bg-slate-200"></div>
+                    <div className="flex-1">
+                      <span className="block text-xs uppercase text-slate-400">Sum Split</span>
+                      <span className="font-bold">{table1Data.filter(d => d.isEvenSum).length}E / {table1Data.filter(d => !d.isEvenSum).length}O</span>
+                    </div>
+                  </div>
+                  <div className="max-h-96 overflow-y-auto rounded-xl border border-slate-200 shadow-inner">
+                    <table className="w-full text-xs text-left bg-white">
+                      <thead className="bg-slate-100 sticky top-0">
+                        <tr>
+                          <th className="p-2 font-semibold">Surah</th>
+                          <th className="p-2 font-semibold text-right">Ayahs</th>
+                          <th className="p-2 font-semibold text-right">Sum</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {table1Data.map(d => (
+                          <tr key={d.id} className="hover:bg-slate-50">
+                            <td className="p-2 font-medium">#{d.id}</td>
+                            <td className={`p-2 text-right ${d.isEvenAyahs ? 'text-blue-600' : 'text-orange-600'}`}>{d.ayahs}</td>
+                            <td className={`p-2 text-right font-bold ${d.isEvenSum ? 'text-blue-600' : 'text-orange-600'}`}>{d.sum}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Table 2 */}
+                <div className="flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-bold text-lg text-slate-700">Table 2: Words</h3>
+                      <div className={`px-3 py-1 text-xs font-bold rounded-full ${table2Win ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                        {table2Win ? 'SUCCESS' : 'FAIL'}
+                      </div>
+                    </div>
+                    <div className="flex gap-4 mb-4 text-sm text-slate-600 bg-white p-3 rounded-lg border border-slate-200">
+                      <div className="flex-1">
+                        <span className="block text-xs uppercase text-slate-400">Words Split</span>
+                        <span className="font-bold">{table2Data.filter(d => d.isEvenWords).length}E / {table2Data.filter(d => !d.isEvenWords).length}O</span>
+                      </div>
+                      <div className="w-px bg-slate-200"></div>
+                      <div className="flex-1">
+                        <span className="block text-xs uppercase text-slate-400">Sum Split</span>
+                        <span className="font-bold">{table2Data.filter(d => d.isEvenSum).length}E / {table2Data.filter(d => !d.isEvenSum).length}O</span>
+                      </div>
+                    </div>
+                    <div className="max-h-96 overflow-y-auto rounded-xl border border-slate-200 shadow-inner">
+                      <table className="w-full text-xs text-left bg-white">
+                        <thead className="bg-slate-100 sticky top-0">
+                          <tr>
+                            <th className="p-2 font-semibold">Surah</th>
+                            <th className="p-2 font-semibold text-right">Words</th>
+                            <th className="p-2 font-semibold text-right">Sum</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {table2Data.map(d => (
+                            <tr key={d.id} className="hover:bg-slate-50">
+                              <td className="p-2 font-medium">#{d.id}</td>
+                              <td className={`p-2 text-right ${d.isEvenWords ? 'text-purple-600' : 'text-pink-600'}`}>{d.words}</td>
+                              <td className={`p-2 text-right font-bold ${d.isEvenSum ? 'text-purple-600' : 'text-pink-600'}`}>{d.sum}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Table 2 Sub-Check */}
+                  {table2SubCheck && (
+                    <div className="mt-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-xs text-slate-700 space-y-2">
+                      <div className="flex items-center justify-between font-bold border-b pb-2 text-slate-800">
+                        <span>Table 2 Sub-Check (Max/Min Words Sum)</span>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold ${table2SubCheck.isMatch ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                          {table2SubCheck.isMatch ? 'MATCH' : 'NO MATCH'}
+                        </span>
+                      </div>
+                      <div className="space-y-1 text-slate-600">
+                        <div className="flex justify-between items-center">
+                          <span>Max Words (Surah #{table2SubCheck.maxWordSurah.id}):</span>
+                          <span className="font-mono">{table2SubCheck.maxWordSurah.id} + {table2SubCheck.maxWordSurah.words.toLocaleString()} = <strong>{table2SubCheck.maxSum.toLocaleString()}</strong></span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span>Min Words (Surah #{table2SubCheck.minWordSurah.id}):</span>
+                          <span className="font-mono">{table2SubCheck.minWordSurah.id} + {table2SubCheck.minWordSurah.words.toLocaleString()} = <strong>{table2SubCheck.minSum.toLocaleString()}</strong></span>
+                        </div>
+                        <div className="flex justify-between items-center pt-1 border-t border-slate-100 font-bold text-slate-800">
+                          <span>Combined Words Sum:</span>
+                          <span className="font-mono text-purple-700">{table2SubCheck.combinedWordSum.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between items-center font-bold text-slate-800">
+                          <span>Total Ayahs (Table 1):</span>
+                          <span className="font-mono text-blue-700">{table2SubCheck.totalAyahs.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Table 3 */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-bold text-lg text-slate-700">Table 3: Letters</h3>
+                    <div className={`px-3 py-1 text-xs font-bold rounded-full ${table3Win ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                      {table3Win ? 'SUCCESS' : 'FAIL'}
+                    </div>
+                  </div>
+                  <div className="flex gap-4 mb-4 text-sm text-slate-600 bg-white p-3 rounded-lg border border-slate-200">
+                    <div className="flex-1">
+                      <span className="block text-xs uppercase text-slate-400">Letters Split</span>
+                      <span className="font-bold">{table3Data.filter(d => d.isEvenLetters).length}E / {table3Data.filter(d => !d.isEvenLetters).length}O</span>
+                    </div>
+                    <div className="w-px bg-slate-200"></div>
+                    <div className="flex-1">
+                      <span className="block text-xs uppercase text-slate-400">Sum Split</span>
+                      <span className="font-bold">{table3Data.filter(d => d.isEvenSum).length}E / {table3Data.filter(d => !d.isEvenSum).length}O</span>
+                    </div>
+                  </div>
+                  <div className="max-h-96 overflow-y-auto rounded-xl border border-slate-200 shadow-inner">
+                    <table className="w-full text-xs text-left bg-white">
+                      <thead className="bg-slate-100 sticky top-0">
+                        <tr>
+                          <th className="p-2 font-semibold">Surah</th>
+                          <th className="p-2 font-semibold text-right">Letters</th>
+                          <th className="p-2 font-semibold text-right">Sum</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {table3Data.map(d => (
+                          <tr key={d.id} className="hover:bg-slate-50">
+                            <td className="p-2 font-medium">#{d.id}</td>
+                            <td className={`p-2 text-right ${d.isEvenLetters ? 'text-teal-600' : 'text-indigo-600'}`}>{d.letters}</td>
+                            <td className={`p-2 text-right font-bold ${d.isEvenSum ? 'text-teal-600' : 'text-indigo-600'}`}>{d.sum}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Explanation Block */}
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+          <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+            <Info className="w-5 h-5 text-emerald-600" />
+            How this proves design
+          </h3>
+          <ul className="space-y-3 text-slate-600 text-sm">
+            <li className="flex gap-3">
+              <div className="bg-slate-100 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0">1</div>
+              <p>In the real Quran, there are 114 Surahs. The "Sum" is calculated by adding the Surah Number + Number of Ayahs / Words / Letters.</p>
+            </li>
+            <li className="flex gap-3">
+              <div className="bg-slate-100 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0">2</div>
+              <p>Remarkably, exactly <strong>half</strong> the sums are Even, and <strong>half</strong> are Odd across Ayahs, Words, and Letters (range up to 500x words range).</p>
+            </li>
+            <li className="flex gap-3">
+              <div className="bg-slate-100 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0">3</div>
+              <p><strong>Table 2 Sub-Check:</strong> In the Quran, adding (Surah # + Words) for the surah with the maximum words (Surah 2: 2 + 6116 = 6118) and the surah with the minimum words (Surah 108: 108 + 10 = 118) gives 6118 + 118 = <strong>6236</strong>, which equals the total number of ayahs in the entire Quran!</p>
+            </li>
+            <li className="flex gap-3">
+              <div className="bg-emerald-100 text-emerald-800 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0">!</div>
+              <p>As you can see, while you might occasionally hit the perfect split by luck, matching all 3 tables and sub-checks to the Divine Design is statistically virtually impossible.</p>
+            </li>
+          </ul>
         </div>
       </div>
-
-      {/* Explanation Block */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-        <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-          <Info className="w-5 h-5 text-emerald-600" />
-          How this proves design
-        </h3>
-        <ul className="space-y-3 text-slate-600 text-sm">
-          <li className="flex gap-3">
-            <div className="bg-slate-100 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0">1</div>
-            <p>In the real Quran, there are 114 Surahs. The "Sum" is calculated by adding the Surah Number + Number of Ayahs.</p>
-          </li>
-          <li className="flex gap-3">
-            <div className="bg-slate-100 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0">2</div>
-            <p>Remarkably, exactly <strong>half</strong> the sums are Even, and <strong>half</strong> are Odd. (This is difficult to get by luck as you scale up).</p>
-          </li>
-          <li className="flex gap-3">
-            <div className="bg-slate-100 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0">3</div>
-            <p><strong>The Real Miracle:</strong> The sum of one group equals the total Surahs order (e.g. 6555 for 114 Surahs). The sum of the other group equals the total Ayahs in the generated book (e.g. 6236 for the real Quran).</p>
-          </li>
-          <li className="flex gap-3">
-            <div className="bg-emerald-100 text-emerald-800 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0">!</div>
-            <p>As you can see, while you might occasionally hit the perfect split by luck, matching the sums to the Divine Design is statistically virtually impossible.</p>
-          </li>
-        </ul>
-      </div>
-    </div>
-  );
+    );
+  };
 
 
   const renderGame3 = () => {
