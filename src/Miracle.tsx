@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Play, RotateCcw, Lock, CheckCircle2, XCircle, Info, BookOpen, Globe, Anchor, Scale, ArrowLeft, Dices, Scissors, Zap } from 'lucide-react';
+import { Play, RotateCcw, Lock, CheckCircle2, XCircle, Info, BookOpen, Globe, Anchor, Scale, ArrowLeft, Dices, Scissors, Zap, Hash, Sparkles, Layers } from 'lucide-react';
 
 // --- CONSTANTS & DATA ---
 
@@ -14,10 +14,38 @@ const LEVELS = [
   { id: 5, count: 114, name: "The Miracle", description: "The Ultimate Challenge: 114 Surahs with Perfect Sums." }
 ];
 
-// --- GAME DEFINITIONS ---
-const GAMES = [
+// --- GROUP & GAME DEFINITIONS ---
+export type GroupId = 'symmetry' | 'special_number';
+
+export const GROUPS = [
+  {
+    id: 'symmetry' as const,
+    title: 'Symmetry',
+    subtitle: 'Group 1',
+    description: 'Simulations focusing on Quranic structural and numerical symmetries.',
+    icon: Scale,
+    gradient: 'from-emerald-500 to-teal-600',
+    border: 'border-emerald-200 hover:border-emerald-400',
+    glow: 'hover:shadow-emerald-200/50',
+    badge: '4 Games',
+  },
+  {
+    id: 'special_number' as const,
+    title: 'Special Number (6236)',
+    subtitle: 'Group 2',
+    description: 'Simulations focusing on the total Quranic verse count of 6236.',
+    icon: Hash,
+    gradient: 'from-amber-500 to-orange-600',
+    border: 'border-amber-200 hover:border-amber-400',
+    glow: 'hover:shadow-amber-200/50',
+    badge: '2 Games',
+  },
+];
+
+export const GAMES = [
   {
     id: 'game1' as const,
+    groupId: 'symmetry' as GroupId,
     title: 'Even/Odd Symmetry',
     subtitle: 'Game 1',
     description: 'Generate random ayah, word, and letter counts and check if the sums of (Surah # + Value) split perfectly into even and odd — just like the real Quran.',
@@ -28,6 +56,7 @@ const GAMES = [
   },
   {
     id: 'game2' as const,
+    groupId: 'symmetry' as GroupId,
     title: 'Halving Symmetry',
     subtitle: 'Game 2',
     description: 'Generate random ayah counts for all 114 surahs, split them into two halves (1–57 & 58–114), and check if the count of even-ayah surahs is the same in both halves.',
@@ -38,6 +67,7 @@ const GAMES = [
   },
   {
     id: 'game3' as const,
+    groupId: 'symmetry' as GroupId,
     title: 'Repeated / Non-Repeated Codes',
     subtitle: 'Game 3',
     description: 'Generate random ayahs and calculate codes. Check if the ratio of the sum of repeated codes to non-repeated codes is close to the Golden Ratio (1.618).',
@@ -48,6 +78,7 @@ const GAMES = [
   },
   {
     id: 'game4' as const,
+    groupId: 'symmetry' as GroupId,
     title: 'The Primes Miracle',
     subtitle: 'Game 4',
     description: 'Check if the sum of prime ayah counts plus their corresponding nth primes equals the total number of ayahs.',
@@ -56,9 +87,31 @@ const GAMES = [
     border: 'border-blue-200 hover:border-blue-400',
     glow: 'hover:shadow-blue-200/50',
   },
+  {
+    id: 'game_6236_words' as const,
+    groupId: 'special_number' as GroupId,
+    title: 'Max/Min Words Sum to 6236',
+    subtitle: 'Special 1',
+    description: 'Generate random word counts for all 114 Surahs and test if (Max Word Surah Sum + Min Word Surah Sum) equals the total verse count 6236.',
+    icon: Sparkles,
+    gradient: 'from-amber-500 to-yellow-600',
+    border: 'border-amber-200 hover:border-amber-400',
+    glow: 'hover:shadow-amber-200/50',
+  },
+  {
+    id: 'game_6236_primes' as const,
+    groupId: 'special_number' as GroupId,
+    title: 'Primes Target 6236',
+    subtitle: 'Special 2',
+    description: 'Generate random ayah counts for all 114 Surahs totaling 6236, and check if (Sum of Prime Ayahs + Sum of nth Primes) equals 6236.',
+    icon: Hash,
+    gradient: 'from-cyan-500 to-blue-600',
+    border: 'border-cyan-200 hover:border-cyan-400',
+    glow: 'hover:shadow-cyan-200/50',
+  },
 ];
 
-type GameId = typeof GAMES[number]['id'] | 'game4';
+export type GameId = typeof GAMES[number]['id'];
 
 
 
@@ -116,7 +169,25 @@ function getGoldenRatioStats(a: number, b: number) {
 export default function QuranSymmetryGame() {
   // --- Shared State ---
   const [activeTab, setActiveTab] = useState<'game' | 'miracles'>('game');
+  const [selectedGroup, setSelectedGroup] = useState<GroupId | null>(null);
   const [selectedGame, setSelectedGame] = useState<GameId | null>(null);
+
+  // --- Game 6236-1 (Words Sum) State ---
+  const [g6236WordsAttempts, setG6236WordsAttempts] = useState(0);
+  const [g6236WordsWins, setG6236WordsWins] = useState(0);
+  const [g6236WordsLosses, setG6236WordsLosses] = useState(0);
+  const [g6236WordsData, setG6236WordsData] = useState<Array<{ id: number, words: number, sum: number }>>([]);
+  const [, setG6236WordsStatus] = useState<'idle' | 'success' | 'fail'>('idle');
+  const [g6236WordsBatchSize, setG6236WordsBatchSize] = useState(1000);
+
+  // --- Game 6236-2 (Primes Target 6236) State ---
+  const [g6236PrimesAttempts, setG6236PrimesAttempts] = useState(0);
+  const [g6236PrimesWins, setG6236PrimesWins] = useState(0);
+  const [g6236PrimesLosses, setG6236PrimesLosses] = useState(0);
+  const [g6236PrimesData, setG6236PrimesData] = useState<Array<{ id: number, ayahs: number, isPrimeAyahs: boolean, nthPrime: number }>>([]);
+  const [, setG6236PrimesStatus] = useState<'idle' | 'success' | 'fail'>('idle');
+  const [g6236PrimesBatchSize, setG6236PrimesBatchSize] = useState(1000);
+  const [isG6236PrimesAutoRunning, setIsG6236PrimesAutoRunning] = useState(false);
 
   // --- Game 1 State ---
   const [currentLevelIdx, setCurrentLevelIdx] = useState(0);
@@ -220,6 +291,7 @@ export default function QuranSymmetryGame() {
   const handleTabChange = (tab: 'game' | 'miracles') => {
     setActiveTab(tab);
     if (tab === 'game') {
+      setSelectedGroup(null);
       setSelectedGame(null);
     }
   };
@@ -528,6 +600,179 @@ export default function QuranSymmetryGame() {
   // --- RENDER ---
 
 
+
+  // --- Game 6236-1 Logic (Max/Min Words Sum) ---
+  const generateGame6236Words = () => {
+    setG6236WordsAttempts(prev => prev + 1);
+    const count = 114;
+    const newData = Array.from({ length: count }, (_, i) => {
+      const id = i + 1;
+      const words = Math.floor(Math.random() * (count * 100)) + 1;
+      const sum = id + words;
+      return { id, words, sum };
+    });
+    setG6236WordsData(newData);
+
+    let maxSurah = newData[0];
+    let minSurah = newData[0];
+    for (const item of newData) {
+      if (item.words > maxSurah.words) maxSurah = item;
+      if (item.words < minSurah.words) minSurah = item;
+    }
+
+    const combinedWordSum = maxSurah.sum + minSurah.sum;
+    if (combinedWordSum === 6236) {
+      setG6236WordsStatus('success');
+      setG6236WordsWins(prev => prev + 1);
+    } else {
+      setG6236WordsStatus('fail');
+      setG6236WordsLosses(prev => prev + 1);
+    }
+  };
+
+  const runBatchGame6236Words = () => {
+    let batchWins = 0;
+    let batchLosses = 0;
+    const iterations = Math.max(1, Math.min(g6236WordsBatchSize, 100000));
+    const count = 114;
+
+    for (let i = 0; i < iterations; i++) {
+      let maxWords = -1;
+      let maxSum = 0;
+      let minWords = Infinity;
+      let minSum = 0;
+
+      for (let s = 1; s <= count; s++) {
+        const words = Math.floor(Math.random() * (count * 100)) + 1;
+        const sum = s + words;
+        if (words > maxWords) {
+          maxWords = words;
+          maxSum = sum;
+        }
+        if (words < minWords) {
+          minWords = words;
+          minSum = sum;
+        }
+      }
+
+      if (maxSum + minSum === 6236) {
+        batchWins++;
+      } else {
+        batchLosses++;
+      }
+    }
+
+    setG6236WordsAttempts(prev => prev + iterations);
+    setG6236WordsWins(prev => prev + batchWins);
+    setG6236WordsLosses(prev => prev + batchLosses);
+  };
+
+  const resetGame6236Words = () => {
+    setG6236WordsAttempts(0);
+    setG6236WordsWins(0);
+    setG6236WordsLosses(0);
+    setG6236WordsData([]);
+    setG6236WordsStatus('idle');
+  };
+
+  // --- Game 6236-2 Logic (Primes Target 6236) ---
+  const generateGame6236Primes = () => {
+    setG6236PrimesAttempts(prev => prev + 1);
+    const count = 114;
+
+    const ayahsArr = new Array(count).fill(1);
+    const remaining = 6236 - count;
+    for (let i = 0; i < remaining; i++) {
+      const idx = Math.floor(Math.random() * count);
+      ayahsArr[idx]++;
+    }
+
+    const newData = ayahsArr.map((ayahs, i) => {
+      const id = i + 1;
+      const isPrimeAyahs = isPrime(ayahs);
+      const nthPrime = isPrimeAyahs ? getNthPrime(ayahs) : 0;
+      return { id, ayahs, isPrimeAyahs, nthPrime };
+    });
+
+    setG6236PrimesData(newData);
+
+    let sumPrimeAyahs = 0;
+    let sumNthPrimes = 0;
+    newData.forEach(d => {
+      if (d.isPrimeAyahs) {
+        sumPrimeAyahs += d.ayahs;
+        sumNthPrimes += d.nthPrime;
+      }
+    });
+
+    if (sumPrimeAyahs + sumNthPrimes === 6236) {
+      setG6236PrimesStatus('success');
+      setG6236PrimesWins(prev => prev + 1);
+    } else {
+      setG6236PrimesStatus('fail');
+      setG6236PrimesLosses(prev => prev + 1);
+    }
+  };
+
+  const runBatchGame6236Primes = (overrideIterations?: number) => {
+    let batchWins = 0;
+    let batchLosses = 0;
+    const iterations = overrideIterations !== undefined ? overrideIterations : Math.max(1, Math.min(g6236PrimesBatchSize, 100000));
+    const count = 114;
+
+    for (let iter = 0; iter < iterations; iter++) {
+      const ayahsArr = new Array(count).fill(1);
+      const remaining = 6236 - count;
+      for (let i = 0; i < remaining; i++) {
+        const idx = Math.floor(Math.random() * count);
+        ayahsArr[idx]++;
+      }
+
+      let sumPrimeAyahs = 0;
+      let sumNthPrimes = 0;
+
+      for (let s = 0; s < count; s++) {
+        const ayahs = ayahsArr[s];
+        if (isPrime(ayahs)) {
+          sumPrimeAyahs += ayahs;
+          sumNthPrimes += getNthPrime(ayahs);
+        }
+      }
+
+      if (sumPrimeAyahs + sumNthPrimes === 6236) {
+        batchWins++;
+      } else {
+        batchLosses++;
+      }
+    }
+
+    setG6236PrimesAttempts(prev => prev + iterations);
+    setG6236PrimesWins(prev => prev + batchWins);
+    setG6236PrimesLosses(prev => prev + batchLosses);
+  };
+
+  const resetGame6236Primes = () => {
+    setG6236PrimesAttempts(0);
+    setG6236PrimesWins(0);
+    setG6236PrimesLosses(0);
+    setG6236PrimesData([]);
+    setG6236PrimesStatus('idle');
+    setIsG6236PrimesAutoRunning(false);
+  };
+
+  useEffect(() => {
+    let timeoutId: number;
+    if (isG6236PrimesAutoRunning) {
+      const runCycle = () => {
+        runBatchGame6236Primes(100000);
+        timeoutId = setTimeout(runCycle, 0) as unknown as number;
+      };
+      timeoutId = setTimeout(runCycle, 0) as unknown as number;
+    }
+    return () => clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isG6236PrimesAutoRunning]);
+
   // --- Game 4 Logic ---
   const generateGame4 = () => {
     setG4Attempts(prev => prev + 1);
@@ -603,52 +848,52 @@ export default function QuranSymmetryGame() {
     setG4Attempts(prev => prev + iterations);
   };
 
-  const renderGameHub = () => (
+    const renderGroupHub = () => (
     <div className="space-y-8">
       <div className="text-center">
-        <h2 className="text-2xl font-bold text-slate-800 mb-2">Choose a Simulation</h2>
+        <h2 className="text-2xl font-bold text-slate-800 mb-2">Choose a Chapter</h2>
         <p className="text-slate-500 text-sm max-w-lg mx-auto">
-          Each game demonstrates a different mathematical pattern found in the Quran that is virtually impossible to replicate by chance.
+          Explore Quranic numerical miracles organized by thematic groups and mathematical chapters.
         </p>
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
-        {GAMES.map((game) => {
-          const Icon = game.icon;
+        {GROUPS.map((group) => {
+          const Icon = group.icon;
           return (
             <button
-              key={game.id}
-              onClick={() => setSelectedGame(game.id)}
-              className={`group relative bg-white rounded-2xl shadow-md overflow-hidden border-2 ${game.border} text-left transition-all duration-300 hover:shadow-xl ${game.glow} hover:-translate-y-1`}
+              key={group.id}
+              onClick={() => setSelectedGroup(group.id as GroupId)}
+              className={`group relative bg-white rounded-2xl shadow-md overflow-hidden border-2 ${group.border} text-left transition-all duration-300 hover:shadow-xl ${group.glow} hover:-translate-y-1`}
             >
-              {/* Top gradient bar */}
-              <div className={`h-2 bg-gradient-to-r ${game.gradient}`} />
+              <div className={`h-2 bg-gradient-to-r ${group.gradient}`} />
 
               <div className="p-8">
-                {/* Badge */}
-                <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-white bg-gradient-to-r ${game.gradient} mb-4`}>
-                  <Dices className="w-3 h-3" />
-                  {game.subtitle}
+                <div className="flex items-center justify-between mb-4">
+                  <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-white bg-gradient-to-r ${group.gradient}`}>
+                    <Layers className="w-3.5 h-3.5" />
+                    {group.subtitle}
+                  </div>
+                  <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-600 rounded-full">
+                    {group.badge}
+                  </span>
                 </div>
 
-                {/* Icon + Title */}
                 <div className="flex items-center gap-3 mb-3">
-                  <div className={`p-3 rounded-xl bg-gradient-to-br ${game.gradient} text-white shadow-lg`}>
+                  <div className={`p-3 rounded-xl bg-gradient-to-br ${group.gradient} text-white shadow-lg`}>
                     <Icon className="w-6 h-6" />
                   </div>
-                  <h3 className="text-xl font-bold text-slate-800 group-hover:text-slate-900 transition-colors">
-                    {game.title}
+                  <h3 className="text-2xl font-bold text-slate-800 group-hover:text-slate-900 transition-colors">
+                    {group.title}
                   </h3>
                 </div>
 
-                {/* Description */}
                 <p className="text-slate-500 text-sm leading-relaxed">
-                  {game.description}
+                  {group.description}
                 </p>
 
-                {/* CTA */}
-                <div className={`mt-6 inline-flex items-center gap-2 text-sm font-semibold bg-gradient-to-r ${game.gradient} bg-clip-text text-transparent`}>
-                  Play Now
+                <div className={`mt-6 inline-flex items-center gap-2 text-sm font-semibold bg-gradient-to-r ${group.gradient} bg-clip-text text-transparent`}>
+                  Explore Games
                   <span className="group-hover:translate-x-1 transition-transform inline-block">→</span>
                 </div>
               </div>
@@ -659,13 +904,88 @@ export default function QuranSymmetryGame() {
     </div>
   );
 
+  const renderGameHub = () => {
+    const activeGroupObj = GROUPS.find(g => g.id === selectedGroup);
+    const filteredGames = GAMES.filter(g => g.groupId === selectedGroup);
+
+    return (
+      <div className="space-y-8">
+        <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+          <button
+            onClick={() => setSelectedGroup(null)}
+            className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-emerald-700 transition-colors group"
+          >
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+            Back to Chapters
+          </button>
+
+          {activeGroupObj && (
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
+              <span>Chapter:</span>
+              <span className="text-slate-700">{activeGroupObj.title}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-slate-800 mb-2">
+            {activeGroupObj ? activeGroupObj.title : 'Choose a Simulation'}
+          </h2>
+          <p className="text-slate-500 text-sm max-w-lg mx-auto">
+            {activeGroupObj ? activeGroupObj.description : 'Select a game from this chapter to run randomized simulations.'}
+          </p>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6">
+          {filteredGames.map((game) => {
+            const Icon = game.icon;
+            return (
+              <button
+                key={game.id}
+                onClick={() => setSelectedGame(game.id as GameId)}
+                className={`group relative bg-white rounded-2xl shadow-md overflow-hidden border-2 ${game.border} text-left transition-all duration-300 hover:shadow-xl ${game.glow} hover:-translate-y-1`}
+              >
+                <div className={`h-2 bg-gradient-to-r ${game.gradient}`} />
+
+                <div className="p-8">
+                  <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-white bg-gradient-to-r ${game.gradient} mb-4`}>
+                    <Dices className="w-3 h-3" />
+                    {game.subtitle}
+                  </div>
+
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className={`p-3 rounded-xl bg-gradient-to-br ${game.gradient} text-white shadow-lg`}>
+                      <Icon className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800 group-hover:text-slate-900 transition-colors">
+                      {game.title}
+                    </h3>
+                  </div>
+
+                  <p className="text-slate-500 text-sm leading-relaxed">
+                    {game.description}
+                  </p>
+
+                  <div className={`mt-6 inline-flex items-center gap-2 text-sm font-semibold bg-gradient-to-r ${game.gradient} bg-clip-text text-transparent`}>
+                    Play Now
+                    <span className="group-hover:translate-x-1 transition-transform inline-block">→</span>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   const renderBackButton = () => (
     <button
       onClick={() => setSelectedGame(null)}
       className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-emerald-700 transition-colors mb-6 group"
     >
       <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-      Back to Games
+      Back to Group Games
     </button>
   );
 
@@ -1749,6 +2069,306 @@ const renderGame2 = () => (
     );
   };
 
+  const renderGame6236Words = () => {
+    const winRate = g6236WordsAttempts > 0 ? ((g6236WordsWins / g6236WordsAttempts) * 100).toFixed(6) : "0.000000";
+
+    return (
+      <div className="space-y-8">
+        {renderBackButton()}
+
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
+          <div className="bg-gradient-to-br from-amber-500 to-yellow-600 p-8 text-center relative overflow-hidden text-white">
+            <div className="relative z-10">
+              <div className="flex items-center justify-center space-x-3 mb-4 opacity-90">
+                <Sparkles className="w-6 h-6 text-white" />
+                <span className="text-white font-medium tracking-wider uppercase text-sm">Special Number 6236 - Game 1</span>
+              </div>
+              <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-6 drop-shadow-md">
+                Max/Min Words Sum to 6236
+              </h1>
+              <p className="text-amber-100 max-w-2xl mx-auto text-lg leading-relaxed">
+                Generate random word counts across all 114 Surahs. Find the Surah with maximum words and minimum words, compute (Surah# + Words) for each, and check if their combined sum equals exactly 6236 (total Quran verses).
+              </p>
+            </div>
+          </div>
+
+          <div className="p-8">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+              <button
+                onClick={generateGame6236Words}
+                className="flex items-center justify-center space-x-2 px-8 py-4 bg-white border-2 border-slate-200 hover:border-amber-500 hover:bg-amber-50 text-slate-700 font-bold rounded-xl transition-all w-full sm:w-auto shadow-sm"
+              >
+                <Play className="w-5 h-5 text-amber-500" />
+                <span>Generate Single Run</span>
+              </button>
+            </div>
+
+            <div className="mt-8 bg-slate-50 rounded-xl p-6 border border-slate-100">
+              <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                <div>
+                  <h3 className="font-bold text-slate-800 flex items-center space-x-2">
+                    <Zap className="w-5 h-5 text-amber-500" />
+                    <span>Batch Automation</span>
+                  </h3>
+                  <p className="text-sm text-slate-500 mt-1">Run thousands of randomized iterations instantly.</p>
+                </div>
+
+                <div className="flex items-center space-x-4 w-full md:w-auto">
+                  <div className="flex items-center space-x-2">
+                    <label className="text-sm text-slate-600">Batches:</label>
+                    <select
+                      value={g6236WordsBatchSize}
+                      onChange={(e) => setG6236WordsBatchSize(Number(e.target.value))}
+                      className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+                    >
+                      <option value={10}>10</option>
+                      <option value={100}>100</option>
+                      <option value={1000}>1,000</option>
+                      <option value={10000}>10,000</option>
+                      <option value={100000}>100,000</option>
+                    </select>
+                  </div>
+                  <button
+                    onClick={runBatchGame6236Words}
+                    className="flex items-center justify-center space-x-2 px-6 py-2 bg-slate-800 hover:bg-slate-900 text-white font-medium rounded-lg transition-colors flex-1 md:flex-none shadow-md"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    <span>Run {g6236WordsBatchSize.toLocaleString()}</span>
+                  </button>
+                </div>
+                {g6236WordsAttempts > 0 && (
+                  <div className="flex justify-center mt-4">
+                    <button
+                      onClick={resetGame6236Words}
+                      className="text-slate-500 hover:text-slate-700 font-medium text-sm flex items-center gap-1"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      Reset Stats
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-4 gap-6">
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 text-center">
+            <p className="text-sm text-slate-500 uppercase tracking-wider mb-2 font-medium">Total Attempts</p>
+            <p className="text-3xl font-black text-slate-800">{g6236WordsAttempts.toLocaleString()}</p>
+          </div>
+          <div className="bg-emerald-50 rounded-xl p-6 shadow-sm border border-emerald-100 text-center relative overflow-hidden">
+            <p className="text-sm text-emerald-600 uppercase tracking-wider mb-2 font-bold">Matches (6236)</p>
+            <p className="text-3xl font-black text-emerald-600 relative z-10">{g6236WordsWins.toLocaleString()}</p>
+          </div>
+          <div className="bg-rose-50 rounded-xl p-6 shadow-sm border border-rose-100 text-center">
+            <p className="text-sm text-rose-600 uppercase tracking-wider mb-2 font-bold">Failed Attempts</p>
+            <p className="text-3xl font-black text-rose-600">{g6236WordsLosses.toLocaleString()}</p>
+          </div>
+          <div className="bg-amber-50 rounded-xl p-6 shadow-sm border border-amber-100 text-center">
+            <p className="text-sm text-amber-600 uppercase tracking-wider mb-2 font-bold">Success Rate</p>
+            <p className="text-3xl font-black text-amber-600">{winRate}%</p>
+          </div>
+        </div>
+
+        {g6236WordsData.length > 0 && (() => {
+          let maxSurah = g6236WordsData[0];
+          let minSurah = g6236WordsData[0];
+          for (const item of g6236WordsData) {
+            if (item.words > maxSurah.words) maxSurah = item;
+            if (item.words < minSurah.words) minSurah = item;
+          }
+          const combinedSum = maxSurah.sum + minSurah.sum;
+          const isMatch = combinedSum === 6236;
+
+          return (
+            <div className={`rounded-xl p-6 border-2 transition-all duration-500 ${isMatch ? 'bg-emerald-50 border-emerald-500 shadow-lg' : 'bg-rose-50 border-rose-200'}`}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className={`font-bold text-lg flex items-center space-x-2 ${isMatch ? 'text-emerald-700' : 'text-rose-700'}`}>
+                  {isMatch ? <CheckCircle2 className="w-6 h-6" /> : <XCircle className="w-6 h-6" />}
+                  <span>{isMatch ? 'Match Found! Sum equals 6236!' : 'No Match Found'}</span>
+                </h3>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-slate-700">
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                  <span className="text-xs text-slate-400 block font-bold uppercase">Max Words Surah</span>
+                  <div className="text-lg font-bold text-slate-800 mt-1">Surah #{maxSurah.id}</div>
+                  <div className="text-sm text-slate-500">{maxSurah.words.toLocaleString()} words</div>
+                  <div className="text-xs text-amber-600 font-mono mt-1">Surah + Words = {maxSurah.sum.toLocaleString()}</div>
+                </div>
+
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                  <span className="text-xs text-slate-400 block font-bold uppercase">Min Words Surah</span>
+                  <div className="text-lg font-bold text-slate-800 mt-1">Surah #{minSurah.id}</div>
+                  <div className="text-sm text-slate-500">{minSurah.words.toLocaleString()} words</div>
+                  <div className="text-xs text-amber-600 font-mono mt-1">Surah + Words = {minSurah.sum.toLocaleString()}</div>
+                </div>
+
+                <div className="bg-white p-4 rounded-xl border border-amber-200 shadow-sm flex flex-col justify-center text-center">
+                  <span className="text-xs text-slate-400 block font-bold uppercase">Combined Words Sum</span>
+                  <div className="text-2xl font-black text-amber-700 mt-1">{combinedSum.toLocaleString()}</div>
+                  <div className="text-xs text-slate-500 mt-1">Target Total Verse Count: <strong>6236</strong></div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+    );
+  };
+
+  const renderGame6236Primes = () => {
+    const winRate = g6236PrimesAttempts > 0 ? ((g6236PrimesWins / g6236PrimesAttempts) * 100).toFixed(6) : "0.000000";
+
+    return (
+      <div className="space-y-8">
+        {renderBackButton()}
+
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
+          <div className="bg-gradient-to-br from-cyan-500 to-blue-600 p-8 text-center relative overflow-hidden text-white">
+            <div className="relative z-10">
+              <div className="flex items-center justify-center space-x-3 mb-4 opacity-90">
+                <Hash className="w-6 h-6 text-white" />
+                <span className="text-white font-medium tracking-wider uppercase text-sm">Special Number 6236 - Game 2</span>
+              </div>
+              <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-6 drop-shadow-md">
+                Primes Target 6236
+              </h1>
+              <p className="text-cyan-100 max-w-2xl mx-auto text-lg leading-relaxed">
+                Distribute exactly 6236 Ayahs randomly across all 114 Surahs. Check if (Sum of Prime Ayah Counts + Sum of corresponding nth Primes) equals exactly 6236.
+              </p>
+            </div>
+          </div>
+
+          <div className="p-8">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+              <button
+                onClick={generateGame6236Primes}
+                className="flex items-center justify-center space-x-2 px-8 py-4 bg-white border-2 border-slate-200 hover:border-cyan-500 hover:bg-cyan-50 text-slate-700 font-bold rounded-xl transition-all w-full sm:w-auto shadow-sm"
+              >
+                <Play className="w-5 h-5 text-cyan-500" />
+                <span>Generate Single Run</span>
+              </button>
+            </div>
+
+            <div className="mt-8 bg-slate-50 rounded-xl p-6 border border-slate-100">
+              <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                <div>
+                  <h3 className="font-bold text-slate-800 flex items-center space-x-2">
+                    <Zap className="w-5 h-5 text-cyan-500" />
+                    <span>Batch Automation</span>
+                  </h3>
+                  <p className="text-sm text-slate-500 mt-1">Run thousands of randomized iterations instantly.</p>
+                </div>
+
+                <div className="flex items-center space-x-4 w-full md:w-auto">
+                  <div className="flex items-center space-x-2">
+                    <label className="text-sm text-slate-600">Batches:</label>
+                    <select
+                      value={g6236PrimesBatchSize}
+                      onChange={(e) => setG6236PrimesBatchSize(Number(e.target.value))}
+                      className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-cyan-500 outline-none"
+                    >
+                      <option value={10}>10</option>
+                      <option value={100}>100</option>
+                      <option value={1000}>1,000</option>
+                      <option value={10000}>10,000</option>
+                    </select>
+                  </div>
+                  <button
+                    onClick={() => runBatchGame6236Primes()}
+                    className="flex items-center justify-center space-x-2 px-6 py-2 bg-slate-800 hover:bg-slate-900 text-white font-medium rounded-lg transition-colors flex-1 md:flex-none shadow-md"
+                    disabled={isG6236PrimesAutoRunning}
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    <span>Run {g6236PrimesBatchSize.toLocaleString()}</span>
+                  </button>
+                  <button
+                    onClick={() => setIsG6236PrimesAutoRunning(!isG6236PrimesAutoRunning)}
+                    className={`flex items-center justify-center space-x-2 px-6 py-2 text-white font-medium rounded-lg transition-colors flex-1 md:flex-none shadow-md ${
+                      isG6236PrimesAutoRunning ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'
+                    }`}
+                  >
+                    <Play className="w-4 h-4" />
+                    <span>{isG6236PrimesAutoRunning ? 'Stop Infinite' : 'Start Infinite (100k)'}</span>
+                  </button>
+                </div>
+                {g6236PrimesAttempts > 0 && (
+                  <div className="flex justify-center mt-4">
+                    <button
+                      onClick={resetGame6236Primes}
+                      className="text-slate-500 hover:text-slate-700 font-medium text-sm flex items-center gap-1"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      Reset Stats
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-4 gap-6">
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 text-center">
+            <p className="text-sm text-slate-500 uppercase tracking-wider mb-2 font-medium">Total Attempts</p>
+            <p className="text-3xl font-black text-slate-800">{g6236PrimesAttempts.toLocaleString()}</p>
+          </div>
+          <div className="bg-emerald-50 rounded-xl p-6 shadow-sm border border-emerald-100 text-center relative overflow-hidden">
+            <p className="text-sm text-emerald-600 uppercase tracking-wider mb-2 font-bold">Matches Found</p>
+            <p className="text-3xl font-black text-emerald-600 relative z-10">{g6236PrimesWins.toLocaleString()}</p>
+          </div>
+          <div className="bg-rose-50 rounded-xl p-6 shadow-sm border border-rose-100 text-center">
+            <p className="text-sm text-rose-600 uppercase tracking-wider mb-2 font-bold">Failed Attempts</p>
+            <p className="text-3xl font-black text-rose-600">{g6236PrimesLosses.toLocaleString()}</p>
+          </div>
+          <div className="bg-cyan-50 rounded-xl p-6 shadow-sm border border-cyan-100 text-center">
+            <p className="text-sm text-cyan-600 uppercase tracking-wider mb-2 font-bold">Success Rate</p>
+            <p className="text-3xl font-black text-cyan-600">{winRate}%</p>
+          </div>
+        </div>
+
+        {g6236PrimesData.length > 0 && (() => {
+          const sumPrimeAyahs = g6236PrimesData.filter(d => d.isPrimeAyahs).reduce((acc: number, curr: { ayahs: number }) => acc + curr.ayahs, 0);
+          const sumNthPrimes = g6236PrimesData.filter(d => d.isPrimeAyahs).reduce((acc: number, curr: { nthPrime: number }) => acc + curr.nthPrime, 0);
+          const totalCalculated = sumPrimeAyahs + sumNthPrimes;
+          const isMatch = totalCalculated === 6236;
+
+          return (
+            <div className={`rounded-xl p-6 border-2 transition-all duration-500 ${isMatch ? 'bg-emerald-50 border-emerald-500 shadow-lg' : 'bg-rose-50 border-rose-200'}`}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className={`font-bold text-lg flex items-center space-x-2 ${isMatch ? 'text-emerald-700' : 'text-rose-700'}`}>
+                  {isMatch ? <CheckCircle2 className="w-6 h-6" /> : <XCircle className="w-6 h-6" />}
+                  <span>{isMatch ? 'Miracle Verified! Sum equals 6236!' : 'Miracle Not Found'}</span>
+                </h3>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                <div className="bg-white rounded-lg p-4 shadow-sm">
+                  <p className="text-xs text-slate-500 uppercase font-medium mb-1">Total Ayahs Generated</p>
+                  <p className="text-2xl font-bold text-slate-800">6,236</p>
+                </div>
+                <div className="bg-white rounded-lg p-4 shadow-sm">
+                  <p className="text-xs text-slate-500 uppercase font-medium mb-1">Sum of Prime Ayahs (m)</p>
+                  <p className="text-2xl font-bold text-slate-800">{sumPrimeAyahs.toLocaleString()}</p>
+                </div>
+                <div className="bg-white rounded-lg p-4 shadow-sm">
+                  <p className="text-xs text-slate-500 uppercase font-medium mb-1">Sum of nth Primes (pm)</p>
+                  <p className="text-2xl font-bold text-slate-800">{sumNthPrimes.toLocaleString()}</p>
+                </div>
+                <div className="bg-white rounded-lg p-4 shadow-sm border-2 border-cyan-100">
+                  <p className="text-xs text-cyan-500 uppercase font-bold mb-1">Total m + pm</p>
+                  <p className="text-2xl font-black text-cyan-700">{totalCalculated.toLocaleString()}</p>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
       {/* Header */}
@@ -1782,11 +2402,14 @@ const renderGame2 = () => (
       <main className="max-w-5xl mx-auto p-6">
 
         {activeTab === 'game' ? (
+          selectedGroup === null ? renderGroupHub() :
           selectedGame === null ? renderGameHub() :
-            selectedGame === 'game1' ? renderGame1() :
-            selectedGame === 'game2' ? renderGame2() :
-            selectedGame === 'game3' ? renderGame3() :
-              renderGame4()
+          selectedGame === 'game1' ? renderGame1() :
+          selectedGame === 'game2' ? renderGame2() :
+          selectedGame === 'game3' ? renderGame3() :
+          selectedGame === 'game4' ? renderGame4() :
+          selectedGame === 'game_6236_words' ? renderGame6236Words() :
+          renderGame6236Primes()
         ) : (
           <div className="grid md:grid-cols-2 gap-6">
             {/* Miracle 1: Land and Sea */}
